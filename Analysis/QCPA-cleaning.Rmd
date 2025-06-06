@@ -1,0 +1,216 @@
+---
+title: "Data Preparation - QCPA"
+author: "Flora Timney"
+date: "2025-05-21"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+In this script, I clean the output dataframes from running the QCPA framework in ImageJ. Binding the relevant columns of data and creating a hierarchical dictionary structure to index the equivalent values across individuals and treatments. 
+
+Initialise R environment, set working directory, clear workspace, load in functions and packages, and set plot theme.
+
+```{r setup-renv, message = FALSE, warning = FALSE, echo=FALSE}
+renv::init() #initialise renv
+```
+
+```{r setup-wd and clear workspace, message = FALSE, warning = FALSE, echo=FALSE}
+setwd(".") #set working directory to where the file is saved
+rm(list = ls(all.names = TRUE)) #clear workspace
+```
+
+```{r}
+source("Functions/packages.r")
+source("Functions/extract_metadata.r")
+source("Functions/clean_dfs.r")
+```
+
+```{r include=FALSE}
+packages <- c("dplyr", "tidyverse", "purrr")
+check_and_load_packages(packages)
+```
+
+--------------------------------------------------------------------------------
+
+## 1. QCPA & LEIA Metrics
+
+```{r echo=TRUE}
+QCPAres_100 <- read_csv("RawData/100_QCPA-CombinedResults/comb-Summary Results.csv")
+LEIAres_100 <- read_csv("RawData/100_QCPA-CombinedResults/comb-Local Edge Intensity Analysis.csv")
+
+QCPAres_550 <- read_csv("RawData/550_QCPA-CombinedResults/comb-Summary Results.csv")
+LEIAres_550 <- read_csv("RawData/550_QCPA-CombinedResults/comb-Local Edge Intensity Analysis.csv")
+
+QCPAres_clips <- read_csv("RawData/clips_QCPA-CombinedResults/comb-Summary Results.csv")
+LEIAres_clips <- read_csv("RawData/clips_QCPA-CombinedResults/comb-Local Edge Intensity Analysis.csv")
+
+qcpa_df_list <- list(
+  QCPAres_100 = QCPAres_100,
+  LEIAres_100 = LEIAres_100,
+  QCPAres_550 = QCPAres_550,
+  LEIAres_550 = LEIAres_550,
+  QCPAres_clips = QCPAres_clips,
+  LEIAres_clips = LEIAres_clips
+)
+```
+
+```{r}
+# Clean them (i.e. remove duplicates and useless columns)
+clean_qcpa_df(qcpa_df_list)
+```
+
+poss -
+
+library(janitor)
+
+compare_distance <- compare_distance %>%
+  clean_names() 
+```{r}
+# Merge the dataframes (and rename Name column)
+merge_qcpa_leia(
+  qcpa_leia_list = ls(pattern = "^(QCPAres|LEIAres)_"),
+  suffixes = c("_100", "_550", "_clips")
+)
+```
+```{r}
+# Calculate clip summary stats and add metadata
+Merged_clips_sum <- Merged_clips %>%
+  # Add metadata
+  extract_metadata(
+    source_col = "FrameName",
+    structure = c("colTreatment", "Genus", "species", "expTreatment", "TrialNum", "ClipNum", "ViewFrame"),
+    keep = c("ClipName", "fullClipName", "TrialName", "TrialNum", "colTreatment"),
+    composite_vars = list(
+      fullClipName = c("Genus", "species", "expTreatment", "TrialNum", "ClipNum", "colTreatment"),
+      ClipName = c("Genus", "species", "expTreatment", "TrialNum", "ClipNum"),
+      TrialName = c("Genus", "species", "expTreatment", "TrialNum")
+    ),
+    insert_after = "FrameName"
+  ) %>%
+  
+  # Remove rows where TrialNum contains letters and print them
+  {
+    # Identify invalid rows (e.g., TrialNum == 4a)
+    invalid_rows <- .[grepl("[a-zA-Z]", .$TrialNum), ]
+    
+    # Print them if any exist
+    if (nrow(invalid_rows) > 0) {
+      cat("Removing rows with lettered TrialNum values:\n")
+      print(invalid_rows)
+    }
+    
+    # Keep only valid rows
+    . <- .[!grepl("[a-zA-Z]", .$TrialNum), ]
+    
+    .
+  } %>%
+  
+  # Remove TrialNum column
+  select(-TrialNum) %>%
+  
+  # Group and summarise
+  group_by(ClipName, fullClipName, TrialName, colTreatment) %>%
+  summarise(
+    across(where(is.numeric), list(
+      med = median,
+      cv = ~ sd(.) / mean(.)
+    ), .names = "{.fn}_{.col}"),
+    .groups = "drop"
+  )
+
+# Split and assign by colTreatment
+split_clips <- Merged_clips_sum %>%
+  group_by(colTreatment) %>%
+  group_split(.keep = TRUE)
+
+treatment_names <- Merged_clips_sum %>%
+  distinct(colTreatment) %>%
+  pull(colTreatment)
+
+# Assign each split to global environment with desired names
+purrr::walk2(
+  treatment_names,
+  split_clips,
+  ~ assign(paste0(.x, "_Merged_clips_sum"), .y, envir = .GlobalEnv)
+)
+```
+
+
+```{r}
+# Your list of dataframes
+merged_dfs <- list(
+  Merged_100 = Merged_100,
+  Merged_550 = Merged_550,
+  bg_Merged_clips_sum = bg_Merged_clips_sum,
+  both_Merged_clips_sum = both_Merged_clips_sum
+)
+
+# Apply extract_metadata to each dataframe
+merged_dfs <- lapply(merged_dfs, function(df) {
+  extract_metadata(
+    df = df,
+    source_col = "TrialName",
+    structure = c("Genus", "species", "expTreatment", "Individual"),
+    keep = c("Species", "Individual"),
+    composite_vars = list(Species = c("Genus", "species")),
+    insert_after = "TrialName"
+  )
+})
+
+# (Optional) Assign back to individual dataframes
+Merged_100 <- merged_dfs$Merged_100
+Merged_550 <- merged_dfs$Merged_550
+bg_Merged_clips_sum <- merged_dfs$bg_Merged_clips_sum
+both_Merged_clips_sum <- merged_dfs$both_Merged_clips_sum
+
+# List of dataframes with desired filenames (without .csv extension)
+merged_dfs <- list(
+  Merged_100 = Merged_100,
+  Merged_550 = Merged_550,
+  bg_Merged_clips_sum = bg_Merged_clips_sum,
+  both_Merged_clips_sum = both_Merged_clips_sum
+)
+
+# Write each to CSV
+output_dir <- file.path(getwd(), "CleanData")
+for (name in names(merged_dfs)) {
+  file_path <- file.path(output_dir, paste0(name, ".csv"))
+  write_csv(merged_dfs[[name]], file_path)
+}
+```
+
+
+```{r}
+# Nested structure
+
+# Combine all your dataframes into one long list with suffix names
+named_dfs <- list(
+  `_100` = Merged_100,
+  `_550` = Merged_550,
+  `bg_clips_sum` = bg_Merged_clips_sum,
+  `both_clips_sum` = both_Merged_clips_sum
+)
+
+# Get all unique trial names from any one dataframe
+all_trials <- unique(c(
+  Merged_100$TrialName,
+  Merged_550$TrialName,
+  bg_Merged_clips_sum$TrialName,
+  both_Merged_clips_sum$TrialName
+))
+
+# Nest: TrialName → [suffix] → dataframe filtered by TrialName
+TrialList <- purrr::set_names(all_trials) %>%
+  purrr::map(function(trial) {
+    purrr::map(named_dfs, ~ dplyr::filter(.x, TrialName == trial))
+  })
+
+```
+
+
+

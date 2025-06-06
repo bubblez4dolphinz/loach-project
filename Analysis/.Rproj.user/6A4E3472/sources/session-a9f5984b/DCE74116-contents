@@ -1,0 +1,453 @@
+---
+title: "EMD-Circular"
+author: "Flora Timney"
+date: "2025-05-23"
+output: html_document
+---
+
+
+```{r setup, include=FALSE, echo=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+```
+
+### Introduction
+
+This script is to analyse the outputs of the colour overlay of perceived motion direction from the EMD model plugin of ImageJ. This script must be proceeded by lateral tracking using the SAM-2 pipeline I developed to get the lateral masks (to apply colour Treatments) and centroid tracks (to infer real motion direction). Then in python script, the colour treatments of averaging out the luminance of just background ('bg') pixels or both ('both') background and fish pixels separately to artificially make them plain. These colour treatments allowed me to separate out the effects of body patterns above and beyond simply being fish-shaped against a plain background. These pre-processed clip frames were then run through the EMD model using a custom Macro script I designed "2_Batch_EMD.ijm" and the output is a table of Up, Down, Left, Right detector values. 
+
+### Set up
+
+Initialise R environment, set working directory, clear workspace, load
+in functions and packages, and set plot theme.
+
+```{r setup-renv, message = FALSE, warning = FALSE, echo=FALSE}
+# renv::init() #initialise renv
+renv::snapshot() #update renv
+```
+
+```{r setup-wd and clear workspace, message = FALSE, warning = FALSE, echo=FALSE}
+setwd(".") #set working directory to where the file is saved
+rm(list = ls(all.names = TRUE)) #clear workspace
+```
+
+```{r, echo=FALSE}
+source("Functions/packages.r")
+source("Functions/extract_metadata.r")
+source("Functions/clean_dfs.r")
+source("Functions/modelling.r")
+source("Functions/overlay_EMD.r")
+```
+
+```{r Install and load packages, message = FALSE, warning = FALSE, echo=FALSE}
+packages <- c("ggplot2", "circular", "purrr", "magick", "CircStats", "conflicted", "readr", "tidyr", "stringr", "gt", "broom", "webshot2", "forcats", "dplyr")
+check_and_load_packages(packages)
+
+conflict_prefer("select", "dplyr")
+conflict_prefer("filter", "dplyr")
+conflict_prefer("mutate", "dplyr")
+conflict_prefer("drop_na", "tidyr")
+conflict_prefer("pivot_wider", "tidyr")
+```
+
+
+```{r setup-standardise plots, message = FALSE, warning = FALSE, echo=FALSE}
+theme_set(theme_minimal()) #standardise the plots
+
+
+species_colours <- c("Botia_lohachata" = "#E69F00", "Yasuhikotakia_modesta" = "#0072B2")
+species_labels <- c(
+  "Botia_lohachata" = "Botia lohachata",
+  "Yasuhikotakia_modesta" = "Yasuhikotakia modesta"
+)
+```
+
+### 1.  Load in and organise data
+
+```{r load in data, include=FALSE}
+EMDdata <- read_csv("RawData/comb-EMD Overlay Results.csv")
+
+# Fix column names in the main dataframe
+EMDdata <- EMDdata %>%
+  rename(FullClipName = Name) %>%
+  { names(.)[2] <- "Frame"; . } %>%
+  mutate(
+    ClipName = FullClipName %>%
+      str_remove("^bg_|^both_") %>%  # drop "bg_" or "both_"
+      str_remove("_[LD]$")           # drop trailing "_L" or "_D"
+  )
+
+tracks <- read_csv("RawData/lateral_combined_tracks.csv")
+
+real_direction <- tracks %>%
+  # make sure frames are in ascending order
+  arrange(clip, frame) %>%
+  group_by(clip) %>%
+  summarise(
+    real_direction = if_else(
+      last(x) > first(x),
+      90,   # moving right
+      270   # moving left
+    )
+  ) %>%
+  ungroup() %>%
+  mutate(
+    clip = str_remove(clip, "_[LD]$")
+  ) %>%
+  rename(ClipName = clip)
+```
+
+### 2. Analyze real and perceived motion direction in each clip
+```{r Analyze motion, include=FALSE}
+# 1) Analyze motion each clip
+results_by_clip <- EMDdata %>%
+  group_by(FullClipName, ClipName) %>%
+  group_split() %>%
+  map(~ {
+    clipdf    <- .x
+    fc        <- unique( clipdf$FullClipName )
+    cn        <- unique( clipdf$ClipName )
+    res       <- analyze_motion(clipdf, cn)
+    if (is.null(res)) return(NULL)
+    # attach FullClipName & ClipName into the frame_results
+    res$frame_results <- res$frame_results %>%
+      mutate(FullClipName = fc, ClipName = cn)
+    # store FullClipName & ClipName on the summary side too
+    res$FullClipName <- fc
+    res$ClipName     <- cn
+    res
+  }) %>%
+  compact()  # drop any NULLs
+
+# 2) Build the frame‐level DF
+EMDOverlay_frames <- map_dfr(results_by_clip, "frame_results") %>%
+  select(FullClipName, ClipName, Frame, motion_direction, motion_magnitude)
+
+# 3) Build the clip‐summary DF
+EMDOverlay_clipsummary <- map_dfr(results_by_clip, function(res) {
+  tibble(
+    FullClipName   = res$FullClipName,
+    ClipName       = res$ClipName,
+    mean_direction = as.numeric(res$mean_direction),
+    mean_magnitude = res$mean_magnitude
+  )
+})
+
+# 4) Compute real_direction from tracks
+real_direction_tracks <- tracks %>%
+  mutate(
+    ClipName = str_remove(clip, "_[LD]$")
+  ) %>%
+  group_by(ClipName) %>%
+  summarise(
+    real_direction = if_else(last(x) > first(x), 90, 270),
+    .groups = "drop"
+  )
+
+# 5) Join real_direction into the clip summary
+EMDOverlay_clipsummary <- EMDOverlay_clipsummary %>%
+  left_join(real_direction_tracks, by = "ClipName")
+
+# 6) Save to CSV
+write_csv(EMDOverlay_frames,     "CleanData/EMDOverlay_frames.csv")
+write_csv(EMDOverlay_clipsummary, "CleanData/EMDOverlay_clipsummary.csv")
+```
+
+Data preparation pipeline
+```{r}
+# Define factor levels
+treatment_levels <- c("bg", "both")
+species_levels <- c("Botia_lohachata", "Yasuhikotakia_modesta")
+direction_levels <- c("left", "right")
+group_levels <- c(
+  "left_Botia_lohachata_bg", "left_Botia_lohachata_both",
+  "left_Yasuhikotakia_modesta_bg", "left_Yasuhikotakia_modesta_both",
+  "right_Botia_lohachata_bg", "right_Botia_lohachata_both",
+  "right_Yasuhikotakia_modesta_bg", "right_Yasuhikotakia_modesta_both"
+)
+
+# Main data transformation pipeline
+df <- EMDOverlay_clipsummary %>%
+  # Parse metadata from FullClipName
+  mutate(
+    treatment = case_when(
+      grepl("^bg_", FullClipName) ~ "bg",
+      grepl("^both_", FullClipName) ~ "both",
+      TRUE ~ NA_character_
+    ),
+    Species = str_extract(FullClipName, "(?<=^(bg_|both_))[^_]+_[^_]+"),
+    Direction = case_when(
+      real_direction == 270 ~ "left",
+      real_direction == 90 ~ "right",
+      TRUE ~ NA_character_
+    )
+  ) %>%
+  # Filter out unusable rows
+  filter(!is.na(treatment), !is.na(Direction)) %>%
+  # Compute circular differences
+  mutate(
+    mean_direction_circ = circular(mean_direction, units = "degrees", template = "geographics"),
+    real_direction_circ = circular(real_direction, units = "degrees", template = "geographics")
+  ) %>%
+  rowwise() %>%
+  mutate(
+    signed_diff = as.numeric(mean_direction_circ - real_direction_circ),
+    signed_diff = case_when(
+      signed_diff > 180  ~ signed_diff - 360,
+      signed_diff < -180 ~ signed_diff + 360,
+      TRUE ~ signed_diff
+    ),
+    abs_diff = abs(signed_diff)
+  ) %>%
+  ungroup() %>%
+  # Final categorization and factor formatting
+  mutate(
+    treatment = factor(treatment, levels = treatment_levels),
+    Species = factor(Species, levels = species_levels),
+    Direction = factor(Direction, levels = direction_levels),
+    group = factor(paste(Direction, Species, treatment, sep = "_"), levels = group_levels),
+    alpha_val = ifelse(treatment == "bg", 0.4, 1)
+  )
+
+# Split into directional subsets
+df_left <- filter(df, real_direction == 270)
+df_right <- filter(df, real_direction == 90)
+
+```
+
+
+## 3. Statistical analysis of Direction and Magnitude
+(a) Direction analysis: (i) angular differences, (ii) skew
+(b) Magnitude analysis
+
+Running Anova tests for magnitude and direction and saving results tables
+```{r}
+# ANOVA for skew (abs_diff)
+anova_skew <- aov(abs_diff ~ Species * treatment, data = df)
+
+# ANOVA for magnitude
+anova_mag <- aov(mean_magnitude ~ Species * treatment, data = df)
+
+# Tidy the ANOVA results
+anova_skew_tbl <- tidy(anova_skew)
+anova_mag_tbl <- tidy(anova_mag)
+
+# Format as gt tables
+gt_skew <- anova_skew_tbl %>%
+  gt() %>%
+  tab_header(
+    title = "ANOVA: Signed Angular Difference (Skew)"
+  )
+
+gt_mag <- anova_mag_tbl %>%
+  gt() %>%
+  tab_header(
+    title = "ANOVA: Mean Magnitude of Motion Information"
+  )
+
+# Save as PNG
+gtsave(gt_skew, filename = "Figures/MotionPatterns/Models/EMD_anova_skew.png")
+gtsave(gt_mag, filename = "Figures/MotionPatterns/Models/EMD_anova_magnitude.png")
+
+gt_skew
+gt_mag
+
+
+```
+
+Assessing Skew 
+```{r}
+rayleigh_results <- bind_rows(
+  run_rayleigh(df_left$signed_diff, "Left (270°)"),
+  run_rayleigh(df_right$signed_diff, "Right (90°)")
+)
+
+gt_rayleigh <- rayleigh_results %>%
+  gt() %>%
+  tab_header(
+    title = "Rayleigh Results: Assessing uniformity of angle distributions"
+  )
+
+# Save as PNG
+gtsave(gt_rayleigh, filename = "Figures/MotionPatterns/Models/EMD_rayleigh.png")
+
+gt_rayleigh
+```
+
+    
+```{r}
+AngularDiff_plot <- ggplot(df, aes(x = group, y = signed_diff, fill = Species, alpha = alpha_val)) +
+  geom_boxplot(position = position_dodge(width = 0.8), width = 0.7) +
+  geom_jitter(aes(color = Species),
+              position = position_jitterdodge(jitter.width = 0.4, dodge.width = 0.8),
+              size = 1.5, alpha = 0.6, show.legend = FALSE) +
+  scale_fill_manual(values = species_colours, labels = species_labels, name = "Species") +
+  scale_color_manual(values =c("grey80", "grey80")) +
+  scale_alpha_identity() +  # use the alpha_val directly without legend
+  scale_x_discrete(
+    labels = c(
+      "left_Botia_lohachata_bg" = "B. lohachata,\npatterned",
+      "left_Botia_lohachata_both" = "B. lohachata,\nplain",
+      "left_Yasuhikotakia_modesta_bg" = "Y. modesta,\npatterned",
+      "left_Yasuhikotakia_modesta_both" = "Y. modesta,\nplain",
+      "right_Botia_lohachata_bg" = "B. lohachata,\npatterned",
+      "right_Botia_lohachata_both" = "B. lohachata,\nplain",
+      "right_Yasuhikotakia_modesta_bg" = "Y. modesta,\npatterned",
+      "right_Yasuhikotakia_modesta_both" = "Y. modesta,\nplain"
+    )
+  ) +
+  labs(
+    title = "Signed Angular Differences in Direction",
+    subtitle = "Signed angular difference between perceived and true direction of motion:\nby true direction, species, and applied colour treatment (leave patterned or make plain)",
+    x = "Groups (Species, Colour Treatment)",
+    y = "Signed difference (degrees)"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "top",
+    axis.text.x = element_text(size = 9, face = "bold", angle = 45, hjust = 1),
+    plot.title = element_text(face = "bold"),
+    legend.text = element_text(face = "italic")
+  ) +
+  # Add vertical dividing line between left/right groups
+  geom_vline(xintercept = 4.5, linetype = "dashed", color = "gray50", size = 1)
+
+AngularDiff_plot1 <- AngularDiff_plot + 
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red", alpha = 0.3, size = 1) +  # pale red dashed line
+  annotate("text", x = 2, y = max(df$signed_diff, na.rm=TRUE) * 1.1, label = "fish moving left", fontface = "bold") +
+  annotate("text", x = 7, y = max(df$signed_diff, na.rm=TRUE) * 1.1, label = "fish moving right", fontface = "bold")
+
+ggsave("Figures/MotionPatterns/Plots/EMD_AngularDiff_plot.svg", plot = AngularDiff_plot1, width = 10, height = 6)
+ggsave("Figures/MotionPatterns/Plots/EMD_AngularDiff_plot.png", plot = AngularDiff_plot1, width = 10, height = 6)
+
+```
+
+Magnitude difference
+
+```{r}
+MeanMag_plot <- ggplot(df, aes(x = treatment, y = mean_magnitude, fill = Species)) +
+  geom_boxplot(position = position_dodge(width = 0.8), alpha = 0.8, width = 0.6) +
+  geom_jitter(aes(color = Species),
+              position = position_jitterdodge(jitter.width = 0.5, dodge.width = 0.8),
+              size = 1) +
+  scale_fill_manual(values = species_colours, labels = species_labels) +
+  scale_color_manual(values = species_colours, guide = "none") +
+  scale_x_discrete(labels = c(
+  "both" = "Plain",
+  "bg" = "Patterned"
+)) +
+  labs(
+    title = "Mean Magnitude of Motion Signals",
+    subtitle = "Effect of body colour patterns on motion signals:\nby species and applied colour treatment (leave patterned or make plain)",
+    x = "Colour Treatment",
+    y = "Mean Magnitude of Motion Signals",
+    fill = "Species"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "top",
+    plot.title = element_text(face = "bold"),
+    legend.text = element_text(face = "italic")
+  )
+
+MeanMag_plot
+
+ggsave("Figures/MotionPatterns/Plots/EMD_MeanMag_plot.svg", plot = MeanMag_plot, width = 10, height = 6)
+ggsave("Figures/MotionPatterns/Plots/EMD_MeanMag_plot.png", plot = MeanMag_plot, width = 10, height = 6)
+
+```
+
+
+Circular plot of left and right clips
+
+```{r}
+# Open SVG device for vector graphics or do PNG
+# svg("Figures/MotionPatterns/Plots/EMD_CircularDiff_plot.svg", width = 6, height = 4)
+
+# Also save PNG version with resolution specified
+png("Figures/MotionPatterns/Plots/EMD_CircularDiff_plot.png", width = 6, height = 4, units = "in", res = 300)
+
+# Layout: 1 row, 2 columns, and set plotting parameters
+par(mfrow = c(1, 2),           # Layout: 1 row, 2 plots
+    mar = c(2, 2, 2, 1),       # Margins: bottom, left, top, right
+    oma = c(0, 0, 0, 0),       # Outer margins
+    mgp = c(1.5, 0.5, 0))      # Axis title, label, and line
+
+# Plot for Left Clips
+plot(circular(df_left$signed_diff[df_left$treatment == "bg"], units = "degrees"),
+     main = "Left Clips",
+     col = "darkseagreen2", pch = 16, stack = TRUE, shrink = 1)
+points(circular(df_left$signed_diff, units = "degrees"),
+       col = "darkgreen", pch = 16)
+legend("topleft", legend = c("Patterned", "Plain"), col = c("darkseagreen2", "darkgreen"), pch = 16, bty = "n")
+
+# Plot for Right Clips
+plot(circular(df_right$signed_diff[df_right$treatment == "bg"], units = "degrees"),
+     main = "Right Clips",
+     col = "thistle2", pch = 16, stack = TRUE, shrink = 1)
+points(circular(df_right$signed_diff, units = "degrees"),
+       col = "violetred4", pch = 16)
+legend("topleft", legend = c("Patterned", "Plain"), col = c("thistle2", "violetred4"), pch = 16, bty = "n")
+
+# Close both devices in order
+dev.off()  # closes plotting
+
+```
+
+--------------------------------------------------------------------------------
+Supplentary
+###  Plotting motion for all clips:
+
+
+Plotting for individual clips
+```{r Plotting for individual clips, eval = FALSE}
+plots <- plot_motion(clipname = "Botia_lohachata_C_10_2",
+                     frame_data   = EMDOverlay_frames,
+                     summary_data = EMDOverlay_clipsummary,
+                     output_dir   = "Figures/MotionPatterns/Plots/ClipPlots")
+
+# Now you can view them like this:
+plots$direction_plot
+plots$magnitude_plot
+plots$circular_plot()  # call as a function to render circular plot in viewer
+
+combine_motion_plots_by_clipname("Botia_lohachata_C_10_2", 
+                                 input_dir = "Figures/MotionPatterns/Plots/ClipPlots", 
+                                 output_dir = "Figures/MotionPatterns/Plots/ClipPlots/Combined")
+
+```
+
+
+Looping through all clips and creating plots of direction and magnitude of motion
+```{r Create motion plots and figures, eval=FALSE}
+# Create output directories
+dir.create("Figures/MotionPatterns/Plots/ClipPlots", recursive = TRUE, showWarnings = FALSE)
+dir.create("Figures/MotionPatterns/Plots/ClipPlots/Combined", recursive = TRUE, showWarnings = FALSE)
+
+# Get all unique ClipNames from FullClipName
+unique_clips <- unique(EMDOverlay_clipsummary$ClipName)
+
+# Loop through each unique ClipName
+for (clip in unique_clips) {
+  message("▶️ Processing: ", clip)
+
+  # Generate and save all plots
+  plots <- plot_motion(
+    clipname     = clip,
+    frame_data   = EMDOverlay_frames,
+    summary_data = EMDOverlay_clipsummary,
+    output_dir   = "Figures/MotionPatterns/Plots/ClipPlots",
+    save_circular  = TRUE,
+    save_direction = TRUE,
+    save_magnitude = TRUE
+  )
+
+  # Combine the three saved plots
+  combine_motion_plots_by_clipname(
+    clipname    = clip,
+    input_dir   = "Figures/MotionPatterns/Plots/ClipPlots",
+    output_dir  = "Figures/MotionPatterns/Plots/ClipPlots/Combined"
+  )
+}
+
+```
+

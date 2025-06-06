@@ -1,0 +1,68 @@
+"0","QCPAres_100 <- read_csv(""RawData/100_QCPA-CombinedResults/comb-Summary Results.csv"")"
+"2","New names:"
+"2","[1mRows: [22m[34m47[39m [1mColumns: [22m[34m130[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m───────────────────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m   (2): Name, Image
+[32mdbl[39m (128): ...2, CAA:Sc, CAA:Jc, CAA:St, CAA:Jt, CAA:Hc, CAA:Qc, CAA:Ht, CAA:Qt..."
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"0","LEIAres_100 <- read_csv(""RawData/100_QCPA-CombinedResults/comb-Local Edge Intensity Analysis.csv"")"
+"2","New names:"
+"2","[1mRows: [22m[34m47[39m [1mColumns: [22m[34m36[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m───────────────────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m  (3): Name, Image, Transform
+[32mdbl[39m (33): ...2, Col mean, Col sd, Col CoV, Col skew, Col kurtosis, Lum mean, Lu..."
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"0","QCPAres_550 <- read_csv(""RawData/550_QCPA-CombinedResults/comb-Summary Results.csv"")"
+"2","New names:"
+"2","[1mRows: [22m[34m47[39m [1mColumns: [22m[34m130[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m───────────────────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m   (2): Name, Image
+[32mdbl[39m (128): ...2, CAA:Sc, CAA:Jc, CAA:St, CAA:Jt, CAA:Hc, CAA:Qc, CAA:Ht, CAA:Qt..."
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"0","LEIAres_550 <- read_csv(""RawData/550_QCPA-CombinedResults/comb-Local Edge Intensity Analysis.csv"")"
+"2","New names:"
+"2","[1mRows: [22m[34m47[39m [1mColumns: [22m[34m36[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m───────────────────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m  (3): Name, Image, Transform
+[32mdbl[39m (33): ...2, Col mean, Col sd, Col CoV, Col skew, Col kurtosis, Lum mean, Lu..."
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"0","QCPAres_clips <- read_csv(""RawData/clips_QCPA-CombinedResults/comb-Summary Results.csv"")"
+"2","New names:"
+"2","[1mRows: [22m[34m2290[39m [1mColumns: [22m[34m130[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m───────────────────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m   (2): Name, Image
+[32mdbl[39m (128): ...2, CAA:Sc, CAA:Jc, CAA:St, CAA:Jt, CAA:Hc, CAA:Qc, CAA:Ht, CAA:Qt..."
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"0","LEIAres_clips <- read_csv(""RawData/clips_QCPA-CombinedResults/comb-Local Edge Intensity Analysis.csv"")"
+"2","New names:"
+"2","[1mRows: [22m[34m1145[39m [1mColumns: [22m[34m36[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m───────────────────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m  (3): Name, Image, Transform
+[32mdbl[39m (33): ...2, Col mean, Col sd, Col CoV, Col skew, Col kurtosis, Lum mean, Lu..."
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"0","qcpa_df_list <- list("
+"0","  QCPAres_100 = QCPAres_100,"
+"0","  LEIAres_100 = LEIAres_100,"
+"0","  QCPAres_550 = QCPAres_550,"
+"0","  LEIAres_550 = LEIAres_550,"
+"0","  QCPAres_clips = QCPAres_clips,"
+"0","  LEIAres_clips = LEIAres_clips"
+"0",")"

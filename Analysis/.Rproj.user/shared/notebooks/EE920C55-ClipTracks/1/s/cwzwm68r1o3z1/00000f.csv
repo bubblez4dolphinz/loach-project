@@ -1,0 +1,7 @@
+"0","theme_set(theme_minimal()) #standardise the plots"
+"0",""
+"0","species_colours <- c(""Botia_lohachata"" = ""#E69F00"", ""Yasuhikotakia_modesta"" = ""#0072B2"")"
+"0","species_labels <- c("
+"0","  ""Botia_lohachata"" = ""Botia lohachata"","
+"0","  ""Yasuhikotakia_modesta"" = ""Yasuhikotakia modesta"""
+"0",")"

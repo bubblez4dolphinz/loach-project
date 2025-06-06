@@ -1,0 +1,15 @@
+"0","model <- glmmTMB(clip_CAA_Asp ~ speed*photo_CAA_Asp + (1|TrialName), data=combined_data)"
+"0","tbl <- glmmTMB_to_gt(model, ""Aspect Ratio with Speed"")"
+"0",""
+"0","# tbl is your gt table from glmTMB_to_gt"
+"0","tbl %>%"
+"0","  fmt_number("
+"0","    columns = vars(p.value),  # adjust column name if needed"
+"0","    decimals = 6             # or more decimals you want, no rounding to fewer digits"
+"0","  ) -> tbl_unrounded"
+"2","Warning: [38;5;232mSince gt v0.3.0, `columns = vars(...)` has been deprecated.
+[36m•[38;5;232m Please use `columns = c(...)` instead.[39m"
+"0","gtsave(tbl_unrounded, filename = ""Figures/MotionPatterns/Models/Speed-Pattern_CAA_Asp_model_summary.png"")"
+"2","file:///C:/Users/flora/AppData/Local/Temp/RtmpYxNBu6/file118885b061418.html screenshot completed
+"
+"0","tbl_unrounded"

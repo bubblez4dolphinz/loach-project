@@ -1,0 +1,933 @@
+---
+title: "QCPA - PCA"
+author: "Flora Timney"
+date: "2025-03-06"
+output: html_document
+theme: journal
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include=FALSE, echo=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+```
+
+### Introduction
+
+This script is to analyse the outputs of the QCPA framework included in
+the micaToolbox plugin of ImageJ. Preceding this analysis I created a
+Macro script to batch process a folder of images using QCPA (script
+called '1_FT_Batch_QCPA.ijm') and a python script to combine the result
+outputs for each image into a single csv file (script called
+'Merge_csvs.py). Note, however, that this second part can be done
+directly in R as demonstrated in the 'QCPA Worked Example' script
+downloadable from
+<https://github.com/cedricvandenberg/QCPA-batch-script/tree/main>)
+
+### Set up
+
+Initialise R environment, set working directory, clear workspace, load
+in functions and packages, and set plot theme.
+
+```{r setup-renv, message = FALSE, warning = FALSE, echo=FALSE}
+# renv::init() #initialise renv
+renv::snapshot() #update renv
+```
+
+```{r setup-wd and clear workspace, message = FALSE, warning = FALSE, echo=FALSE}
+setwd(".") #set working directory to where the file is saved
+rm(list = ls(all.names = TRUE)) #clear workspace
+```
+
+```{r, echo=FALSE}
+source("Functions/packages.r")
+source("Functions/extract_metadata.r")
+source("Functions/clean_dfs.r")
+source("Functions/calculations.r")
+source("Functions/modelling.r")
+```
+
+```{r Install and load packages, message = FALSE, warning = FALSE, echo=FALSE}
+packages <- c("corrr", "ggcorrplot", "FactoMineR", "tidyverse", "factoextra", "ggbiplot", "svglite", "gt", "car", "broom.mixed", "purrr", "janitor", "stringr", "emmeans", "dplyr")
+
+
+check_and_load_packages(packages)
+```
+
+```{r setup-standardise plots, message = FALSE, warning = FALSE, echo=FALSE}
+theme_set(theme_minimal()) #standardise the plots
+
+
+species_colours <- c("Botia_lohachata" = "#E69F00", "Yasuhikotakia_modesta" = "#0072B2")
+species_labels <- c(
+  "Botia_lohachata" = "Botia lohachata",
+  "Yasuhikotakia_modesta" = "Yasuhikotakia modesta"
+)
+```
+
+------------------------------------------------------------------------
+
+## 1. PCA  
+
+### (a) Load in and organise data
+
+```{r load in data, include=FALSE}
+data <- read_csv("CleanData/Merged_100.csv")
+
+# Remove columns containing Hrz/hrz/Vrt/vrt
+# Get matching columns and remove them if they exist (Hrz/hrt/vrt/Vrt)
+cols_to_remove <- grep("(?i)(Hrz|Vrt)", names(data), value = TRUE)
+filt_data <- data %>%
+  dplyr::select(-any_of(cols_to_remove))
+
+numerical_data <- filt_data[,-1:-3]
+normalised_data <- scale(numerical_data)
+variables <- names(data[,-1:-3])
+```
+
+### (b)   Compute PCA
+
+```{r compute pca}
+res.pca <- prcomp(normalised_data, scale = FALSE)
+```
+
+### (c)   Visualisations
+
+
+(a) Correlation matrix
+
+```{r Plot 1: correlation matrix plot, echo=FALSE}
+corr_matrix <- cor(normalised_data)
+p.mat <- cor_pmat(normalised_data)
+
+corr_plot <- ggcorrplot(corr_matrix,
+           hc.order = TRUE,
+           type = "lower",
+           p.mat = p.mat,
+           insig = "pch",
+           pch = 4,
+           pch.cex = 1,
+           pch.col = "grey50",
+           ggtheme = ggplot2::theme_gray(),
+           colors = c("#6D9EC1", "white", "#E46726")) +
+  ggtitle("Correlation Plot of Variables Used in PCA") +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 10, face = "bold"),
+    axis.text.x = element_text(size = 3),
+    axis.text.y = element_text(size = 3)
+  ) +
+  guides(fill = guide_colorbar(title = "Correlation")) +
+  annotate("text", x = 3, y = 40, label = "X", size = 3, color = "grey50") +
+  annotate("text", x = 6.5, y = 40, label = "Insignificant", hjust = 0)
+
+
+ggsave("Figures/ColourPatterns/PCA/CorrPlot-Photos_100.svg", plot = corr_plot, width = 8, height = 5)
+ggsave("Figures/ColourPatterns/PCA/CorrPlot-Photos_100.png", plot = corr_plot, width = 8, height = 5)
+
+corr_plot
+```
+
+
+(b) Scree plot visualise eigenvalues (scree plot). Show the percentage
+    of variances explained by each principal component.
+
+```{r Plot 2: scree plot, echo=FALSE}
+scree_plot <- fviz_eig(res.pca,
+                       xlab = "Principal Components",
+                       ylab = "Variance Explained (%)") +
+  ggtitle("Scree plot for PCA") +
+  theme_minimal()
+
+ggsave("Figures/ColourPatterns/PCA/ScreePlot-Photos_100.svg", plot = scree_plot, width = 8, height = 5)
+
+scree_plot
+```
+
+### (d)   Accessing PCA results
+
+```{r accessing pca results, include=FALSE}
+# Eigenvalues
+eig.val <- get_eigenvalue(res.pca)
+eig.val
+  
+# Results for Variables
+res.var <- get_pca_var(res.pca)
+res.var$coord          # Coordinates
+res.var$contrib        # Contributions to the PCs
+res.var$cos2           # Quality of representation 
+# Results for individuals
+res.ind <- get_pca_ind(res.pca)
+res.ind$coord          # Coordinates
+res.ind$contrib        # Contributions to the PCs
+res.ind$cos2           # Quality of representation 
+
+# ################## VARIABLES ######################## #
+# Helper function 
+#::::::::::::::::::::::::::::::::::::::::
+var_coord_func <- function(loadings, comp.sdev){
+  loadings*comp.sdev
+}
+
+# Compute Coordinates for Variables
+#::::::::::::::::::::::::::::::::::::::::
+loadings <- res.pca$rotation
+sdev <- res.pca$sdev
+var.coord <- t(apply(loadings, 1, var_coord_func, sdev)) 
+
+# Compute Cos2 for Variables
+#::::::::::::::::::::::::::::::::::::::::
+var.cos2 <- var.coord^2
+
+# Compute contributions for Variables
+#::::::::::::::::::::::::::::::::::::::::
+comp.cos2 <- apply(var.cos2, 2, sum)
+contrib <- function(var.cos2, comp.cos2){var.cos2*100/comp.cos2}
+var.contrib <- t(apply(var.cos2,1, contrib, comp.cos2))
+
+# ################## INDIVIDUALS ######################## #
+# Coordinates of individuals
+#::::::::::::::::::::::::::::::::::
+ind.coord <- res.pca$x
+
+# Cos2 of individuals
+#:::::::::::::::::::::::::::::::::
+# 1. square of the distance between an individual and the
+# PCA center of gravity
+center <- res.pca$center
+scale<- res.pca$scale
+getdistance <- function(ind_row, center, scale){
+  return(sum(((ind_row-center)/scale)^2))
+  }
+d2 <- apply(normalised_data,1,getdistance, center, scale) # check this
+# 2. Compute the cos2. The sum of each row is 1
+cos2 <- function(ind.coord, d2){return(ind.coord^2/d2)}
+ind.cos2 <- apply(ind.coord, 2, cos2, d2)
+
+# Contributions of individuals
+#:::::::::::::::::::::::::::::::
+contrib <- function(ind.coord, comp.sdev, n.ind){
+  100*(1/n.ind)*ind.coord^2/comp.sdev^2
+}
+ind.contrib <- t(apply(ind.coord, 1, contrib, 
+                       res.pca$sdev, nrow(ind.coord)))
+```
+
+### (e)   Exploring the loadings
+```{r heatmap of contributions, echo=FALSE}
+library(tidyverse)
+library(gt)
+library(gtExtras)
+
+# Keep only first 5 PCs
+var.contrib.df <- as.data.frame(var.contrib)[, 1:5]
+
+# Add variable names as a column
+var.contrib.df <- var.contrib.df %>%
+  rownames_to_column(var = "Variable")
+
+# Convert to long format for plotting
+var.contrib_long <- var.contrib.df %>%
+  pivot_longer(
+    cols = starts_with("PC"),
+    names_to = "PC",
+    values_to = "Contribution"
+  )
+# Convert to wide format with PCs as rows and Variables as columns
+var.contrib_wide <- var.contrib_long %>%
+  pivot_wider(
+    names_from = Variable,
+    values_from = Contribution
+  )
+var.contrib_wide <- var.contrib_wide %>%
+  rename(`Principal Component` = PC) %>%
+  gt()
+
+# Make a pretty gt table (wide format, first 5 PCs)
+gt_var_contrib <- var.contrib.df %>%
+  gt() %>%
+  tab_header(
+    title = "Variable Contributions to First 5 Principal Components"
+  ) %>%
+  fmt_number(
+    columns = starts_with("PC"),
+    decimals = 2
+  ) %>%
+  cols_label(
+    Variable = "Variable",
+    PC1 = "PC1 (%)",
+    PC2 = "PC2 (%)",
+    PC3 = "PC3 (%)",
+    PC4 = "PC4 (%)",
+    PC5 = "PC5 (%)"
+  )
+
+# Save as PNG
+gtsave(gt_var_contrib, "Figures/ColourPatterns/PCA/var_contributions.png")
+gtsave(var.contrib_wide, "Figures/ColourPatterns/PCA/Widevar_contributions.png", vwidth = 6000)
+
+# plotting the contributions
+varcontrib_plot <- ggplot(var.contrib_long, aes(x = Variable, y = Contribution, colour = PC)) +
+  geom_point(position = "dodge") +
+  labs(
+    title = "Variable Contributions to First 5 Principal Components",
+    y = "Contribution (%)",
+    x = "Variable"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position="bottom")
+
+ggsave("Figures/ColourPatterns/PCA/VarContribPlot.png", plot = varcontrib_plot, width = 8, height = 5)
+
+varcontrib_plot
+```
+
+```{r heatmap of loadings with PCs, echo=FALSE}
+# Get the loadings matrix (i.e., variable contributions to PCs)
+loadings <- res.pca$rotation
+
+# Convert to a data frame for plotting
+loadings_df <- as.data.frame(loadings)
+loadings_df$Variable <- rownames(loadings_df)
+
+# (Optional) Reshape to long format for heatmap
+loadings_long <- pivot_longer(loadings_df, 
+                               cols = starts_with("PC"), 
+                               names_to = "PC", 
+                               values_to = "Correlation")
+
+# heatmap of loadings
+loadingsPC_heatmap <- ggplot(loadings_long, aes(x = PC, y = Variable, fill = Correlation)) +
+  geom_tile() +
+  scale_fill_gradient2(low = "#6D9EC1", high = "#E46726", mid = "white", 
+                       midpoint = 0, limit = c(-1, 1), space = "Lab") +
+  theme_minimal() +
+  labs(title = "Variable Correlations (Loadings) with Principal Components",
+       x = "Principal Component",
+       y = "Original Variable") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+ggsave("Figures/ColourPatterns/PCA/Loadings-PC_Heatmap.png", plot = loadingsPC_heatmap, width = 8, height = 5)
+```
+
+```{r heatmap of real correlations with PCs, echo=FALSE}
+# Get PC scores
+scores <- res.pca$x
+
+# Compute correlation of original variables with PCs
+cor_mat <- cor(normalised_data, scores)
+
+# Convert to long format for heatmap
+cor_df <- as.data.frame(cor_mat)
+cor_df$Variable <- rownames(cor_df)
+
+cor_long <- pivot_longer(cor_df, cols = starts_with("PC"), 
+                         names_to = "PC", values_to = "Correlation")
+
+corPC_heatmap <- ggplot(cor_long, aes(x = PC, y = Variable, fill = Correlation)) +
+  geom_tile() +
+  scale_fill_gradient2(low = "#6D9EC1", high = "#E46726", mid = "white") +
+  theme_minimal() +
+  labs(title = "Variable Correlations with Principal Components",
+       x = "Principal Component",
+       y = "Original Variable") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+ggsave("Figures/ColourPatterns/PCA/Corrs-PC_Heatmap.png", plot = corPC_heatmap, width = 8, height = 5)
+
+```
+
+Quantifying the evenness
+```{r quantifying evenness of contributions, echo=FALSE}   
+# For PC1
+library(entropy)
+contrib_pc1 <- res.var$contrib[, 1] / 100  # proportions
+shannon_pc1 <- entropy::entropy(contrib_pc1, unit = "log2")
+
+# For PC2
+contrib_pc2 <- res.var$contrib[, 2] / 100
+shannon_pc2 <- entropy::entropy(contrib_pc2, unit = "log2")
+
+```
+
+
+
+### (f)   Plotting
+```{r Plot3: making labelled biPlot, echo=FALSE}
+
+# Extract scores
+pca_scores <- as.data.frame(res.pca$x)
+pca_scores$Species <- data$Species
+
+# Group centroids
+coord.groups <- get_pca_ind(res.pca)$coord %>%
+  as.data.frame() %>%
+  dplyr::select(Dim.1, Dim.2) %>%
+  mutate(Species = data$Species) %>%
+  group_by(Species) %>%
+  summarise(PC1 = mean(Dim.1), PC2 = mean(Dim.2)) %>%
+   mutate(
+    Species_label = species_labels[Species],
+    label = paste0("PC1 = ", round(PC1, 1), ", PC2 = ", round(PC2, 1))
+  )
+
+# Combine labels into one string
+centroid_text <- paste(coord.groups$Species_label, coord.groups$label, collapse = "\n")
+
+# Top 5 contributors and corresponding loadings for PC1 and PC2
+PC1_contrib <- sort(var.contrib[, 1], decreasing = TRUE)[1:5]
+PC2_contrib <- sort(var.contrib[, 2], decreasing = TRUE)[1:5]
+
+PC1_vars <- names(PC1_contrib)
+PC2_vars <- names(PC2_contrib)
+
+PC1_top <- PC1_vars[1]
+PC2_top <- PC2_vars[1]
+
+PC1_loadings <- res.pca$rotation[PC1_vars, 1]
+PC2_loadings <- res.pca$rotation[PC2_vars, 2]
+
+# Format: var (contrib, loading)
+format_vars <- function(vars, contribs, loadings) {
+  paste0(vars, " (", round(contribs, 2), ", ", round(loadings, 2), ")", collapse = ", ")
+}
+
+PC1_str <- format_vars(PC1_vars, PC1_contrib, PC1_loadings)
+PC2_str <- format_vars(PC2_vars, PC2_contrib, PC2_loadings)
+
+# Variance explained
+percentVar <- round(100 * summary(res.pca)$importance[2, 1:2], 1)
+
+# Combine into dataframe
+PCsummary_df <- data.frame(
+  PC = c("PC1", "PC2"),
+  `Top Variables (contribution, loading)` = c(PC1_str, PC2_str),
+  `Variance explained (%)` = percentVar,
+  check.names = FALSE
+)
+
+# Output as GT table
+library(gt)
+PC_table <- PCsummary_df %>%
+  gt() %>%
+  tab_header(title = "Principal Component Summary: Top 5 Variables") %>%
+  fmt_number(columns = "Variance explained (%)", decimals = 1) %>%
+  cols_align("left", columns = vars(`Top Variables (contribution, loading)`)) %>%
+  opt_row_striping()
+
+print(PC_table)
+gtsave(PC_table, filename = "Figures/ColourPatterns/PCA/PC_table.png")
+
+
+```
+
+```{r}
+library(vegan)
+
+# Take individual PCA scores
+pca_scores <- as.data.frame(res.pca$x[, 1:2])
+pca_scores$Species <- data$Species  # add species info
+
+# Calculate dispersion (distance to centroid) for each group
+dist_pca <- dist(pca_scores[, 1:2])
+dispersion <- betadisper(dist_pca, pca_scores$Species)
+leveneTest(dispersion$distances ~ dispersion$group)
+plot(dispersion)
+
+# Save results
+png("Figures/ColourPatterns/PCA/dispersion_plot.png", width = 800, height = 600)
+plot(dispersion)
+dev.off()
+aov_result <- anova(dispersion)
+
+```
+
+```{r}
+# Labelled biplot
+biplot_plot <- ggplot(pca_scores, aes(x = PC1, y = PC2, color = Species)) +
+  geom_point(size = 3, shape = 16) +
+  stat_ellipse(aes(group = Species), type = "t", alpha = 0.1, linewidth = 1) +
+  scale_color_manual(values = species_colours, 
+  labels = c(
+    expression(italic("Botia lohachata")),
+    expression(italic("Yasuhikotakia modesta"))
+  )) +
+  labs(
+  x = paste0("PC1 (", percentVar[1], "%) [main variable = ", PC1_top, "]"),
+  y = paste0("PC2 (", percentVar[2], "%) [main variable = ", PC2_top, "]"),
+  color = "Species"
+) +
+  theme(
+  legend.direction = 'horizontal',
+  legend.position = 'top',
+  plot.margin = margin(20, 20, 60, 20),
+  axis.title = element_text(size = 10)  # Adjust this number as needed
+) +
+  annotate(
+    "text", x = Inf, y = -Inf, label = centroid_text, hjust = 1.05, vjust = -0.5, size = 3.5, fontface = "italic"
+  )
+
+ggsave("Figures/ColourPatterns/PCA/BiPlot-Photos_100.svg", plot = biplot_plot, width = 8, height = 5)
+ggsave("Figures/ColourPatterns/PCA/BiPlot-Photos_100.png", plot = biplot_plot, width = 8, height = 5)
+
+biplot_plot
+```
+
+
+### (g) Creating PC1 formula
+
+```{r}
+# Extract actual PC1 loadings
+PC1_loadings <- res.pca$rotation[, 1]
+
+# Round loadings for formula output
+rounded_loadings <- round(PC1_loadings, 5)
+
+# Variable names
+vars <- names(PC1_loadings)
+
+# Format terms as "loading * `var`"
+terms <- paste0(rounded_loadings, " * `", vars, "`")
+
+# Collapse into formula string
+rhs <- paste(terms, collapse = " + ")
+
+# Build formula object
+pca_formula_full <- as.formula(paste("PC1 ~", rhs))
+
+# Save formula for later use
+saveRDS(pca_formula_full, "Figures/ColourPatterns/PCA/PC1_formula.rds")
+
+```
+
+
+-------------------------------------------------------
+
+## 2. Preparing Datasets for Analysis
+
+(i) Loading in data
+```{r load in data, include=FALSE}
+Merged_100 <- read_csv("CleanData/Merged_100.csv")
+Merged_550 <- read_csv("CleanData/Merged_550.csv")
+bg_Merged_clips_sum <- read_csv("CleanData/bg_Merged_clips_sum.csv")
+both_Merged_clips_sum <- read_csv("CleanData/both_Merged_clips_sum.csv")
+
+# Create and clean list of merged data frames in one step
+merged_dfs <- list(
+  Merged_100 = Merged_100,
+  Merged_550 = Merged_550,
+  bg_Merged_clips_sum = bg_Merged_clips_sum,
+  both_Merged_clips_sum = both_Merged_clips_sum
+) 
+```
+
+(ii) Choose Colour Pattern Metrics
+```{r choose metrics, include=FALSE}
+cols_to_keep <- c("TrialName", "Species", "Individual", 
+                  "CAA:Asp", "VCA:CVL", "Lum mean", "PC1")
+
+combined_df <- map2_dfr(merged_dfs, names(merged_dfs), ~ {
+  df <- .x
+  test_name <- .y
+  
+  # Calculate PC1 first — this will add or overwrite the PC1 column
+  df <- calc_PC1(df, "Figures/ColourPatterns/PCA/PC1_formula.rds", pc1_colname = "PC1")
+  
+  if (str_starts(test_name, "bg_") | str_starts(test_name, "both_")) {
+    med_cols <- paste0("med_", cols_to_keep[-(1:3)])
+    med_cols_present <- intersect(med_cols, colnames(df))
+    cols_to_select <- c("TrialName", "Species", "Individual", med_cols_present, "PC1")
+    # Add PC1 explicitly since it may not be med_ prefixed
+    df_sel <- df %>% select(all_of(cols_to_select))
+    
+    rename_map <- setNames(
+      nm = str_remove(med_cols_present, "^med_"),
+      object = med_cols_present
+    )
+    df_sel <- df_sel %>% rename(!!!rename_map)
+  } else {
+    cols_present <- intersect(cols_to_keep, colnames(df))
+    df_sel <- df %>% select(all_of(cols_present))
+  }
+  
+  df_sel %>%
+    mutate(
+      expTreatment = case_when(
+        str_detect(TrialName, "_C_") ~ "control",
+        str_detect(TrialName, "_P_") ~ "predator",
+        TRUE ~ NA_character_
+      ),
+      Species = factor(Species, levels = c("Botia_lohachata", "Yasuhikotakia_modesta")),
+      expTreatment = factor(expTreatment, levels = c("control", "predator")),
+      test = test_name
+    ) %>%
+    select(
+      TrialName,
+      Species,
+      Individual,
+      test,
+      expTreatment,
+      everything()
+    )
+})
+
+print(combined_df)
+write.csv(combined_df, "CleanData/combined_df.csv", row.names = FALSE)
+
+imap(merged_dfs, ~ write.csv(.x, file = paste0("CleanData/", .y, "_PCA.csv"), row.names = FALSE))
+```
+
+(iii) Splitting datasets for planned comparisons
+```{r split df for comparisons, include=FALSE}
+combined_df <- read_csv("CleanData/combined_df.csv")
+
+# splitting the datasets for tests:
+
+compare_distance <- combined_df %>%
+  filter(test %in% c("Merged_100", "Merged_550"))  # Note: you wrote Merged_500, I assume it's Merged_550 to match your earlier naming
+
+ compare_motion <- combined_df %>%
+  filter(test %in% c("Merged_550", "bg_Merged_clips_sum"))
+
+compare_colTreatment <- combined_df %>%
+  filter(test %in% c("bg_Merged_clips_sum", "both_Merged_clips_sum"))
+
+write.csv(compare_distance, "CleanData/compare_distance.csv", row.names = FALSE)
+write.csv(compare_motion, "CleanData/compare_motion.csv", row.names = FALSE)
+write.csv(compare_colTreatment, "CleanData/compare_colTreatment.csv", row.names = FALSE)
+
+comparison_dfs <- list(
+  compare_distance = compare_distance,
+  compare_motion = compare_motion,
+  compare_colTreatment = compare_colTreatment
+) 
+```
+
+
+---------------------------------------------------------------------------
+## 3. Running Analysis
+
+```{r}
+
+library(gt)
+library(dplyr)
+library(car)
+
+vars_to_test <- c("CAA:Asp", "VCA:CVL", "Lum mean", "PC1")
+comparison_dfs <- list(
+  Distance = compare_distance,
+  Motion = compare_motion,
+  ColourTreatment = compare_colTreatment
+)
+
+# Function to format p-values
+format_pvalue <- function(p) {
+  if (is.na(p)) return(NA)
+  stars <- if (p < 0.001) "***"
+  else if (p < 0.01) "**"
+  else if (p < 0.05) "*"
+  else if (p < 0.1) "."
+  else ""
+  paste0(signif(p, 5), " ", stars)
+}
+
+# Save individual ANOVA tables
+for (dataset_name in names(comparison_dfs)) {
+  df <- comparison_dfs[[dataset_name]]
+  output_df <- data.frame()
+
+  for (var in vars_to_test) {
+    formula <- as.formula(paste0("`", var, "` ~ Species * test"))
+    model <- lm(formula, data = df)
+    aov_res <- car::Anova(model, type = "II")
+    aov_df <- as.data.frame(aov_res)
+    aov_df$Group <- rownames(aov_df)
+    aov_df <- aov_df[aov_df$Group != "Residuals", ]
+
+    aov_df$F <- round(aov_df$`F value`, 3)
+    aov_df$P <- sapply(aov_df$`Pr(>F)`, format_pvalue)
+    aov_df$Response <- paste("Response variable:", var)
+
+    output_df <- rbind(output_df, aov_df[, c("Response", "Group", "F", "P")])
+  }
+
+  table <- gt(output_df, groupname_col = "Response") %>%
+    cols_label(Group = "Group", F = "F value", P = "P value") %>%
+    tab_style(
+      style = cell_text(weight = "bold"),
+      locations = cells_row_groups()
+    ) %>%
+    cols_align("center", columns = everything())
+
+  gtsave(table, paste0("Figures/ColourPatterns/Models/", dataset_name, "_ANOVA_table.png"))
+}
+
+# Build combined table
+combined_rows <- list()
+for (var in vars_to_test) {
+  row_block <- data.frame(Response = character(), Group = character())
+
+  for (dataset_name in names(comparison_dfs)) {
+    df <- comparison_dfs[[dataset_name]]
+    formula <- as.formula(paste0("`", var, "` ~ Species * test"))
+    model <- lm(formula, data = df)
+    aov_res <- car::Anova(model, type = "II")
+    aov_df <- as.data.frame(aov_res)
+    aov_df$Group <- rownames(aov_df)
+    aov_df <- aov_df[aov_df$Group != "Residuals", ]
+
+    # Rename columns
+    colnames(aov_df)[which(colnames(aov_df) == "F value")] <- paste0("F_", dataset_name)
+    colnames(aov_df)[which(colnames(aov_df) == "Pr(>F)")] <- paste0("P_", dataset_name)
+
+    # Keep necessary
+    aov_df <- aov_df[, c("Group", paste0("F_", dataset_name), paste0("P_", dataset_name))]
+    aov_df[[paste0("F_", dataset_name)]] <- round(aov_df[[paste0("F_", dataset_name)]], 3)
+    aov_df[[paste0("P_", dataset_name)]] <- sapply(aov_df[[paste0("P_", dataset_name)]], format_pvalue)
+
+    if (dataset_name == "Distance") {
+      row_block <- aov_df
+    } else {
+      row_block <- left_join(row_block, aov_df, by = "Group")
+    }
+  }
+
+  row_block$Response <- paste0("Response variable: ", var)
+  combined_rows[[var]] <- row_block
+}
+
+final_df <- do.call(rbind, combined_rows)
+
+# Create combined gt table
+gt_tbl <- final_df %>%
+  select(Response, Group,
+         F_Distance, P_Distance,
+         F_Motion, P_Motion,
+         F_ColourTreatment, P_ColourTreatment) %>%
+  gt(groupname_col = "Response") %>%
+  cols_label(
+    Group = "Group",
+    F_Distance = "F stat",
+    P_Distance = "p value",
+    F_Motion = "F stat",
+    P_Motion = "p value",
+    F_ColourTreatment = "F stat",
+    P_ColourTreatment = "p value"
+  ) %>%
+  tab_spanner(label = "Distance", columns = c(F_Distance, P_Distance)) %>%
+  tab_spanner(label = "Motion", columns = c(F_Motion, P_Motion)) %>%
+  tab_spanner(label = "Colour Treatment", columns = c(F_ColourTreatment, P_ColourTreatment)) %>%
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_row_groups()
+  ) %>%
+  cols_align(align = "center", columns = everything())
+
+gtsave(gt_tbl, "Figures/ColourPatterns/Models/combined_ANOVA_table.png")
+
+gt_tbl2 <- gt_tbl %>%
+  tab_options(
+    data_row.padding = px(8),          # Padding for all data rows
+    row_group.padding = px(100),        # Extra padding for group headers
+    heading.padding = px(100)           # Padding for the main title
+  )
+
+gtsave(gt_tbl2, "Figures/ColourPatterns/Models/THINcombined_ANOVA_table.png")
+```
+
+Plotting interaction plots per variable across all comparisons
+
+```{r}
+format_pvalue <- function(p) {
+  if (is.na(p)) return("NA")
+  rounded <- formatC(p, digits = 3, format = "f")
+  stars <- if (p < 0.001) {
+    "***"
+  } else if (p < 0.01) {
+    "**"
+  } else if (p < 0.05) {
+    "*"
+  } else if (p < 0.1) {
+    "."
+  } else {
+    ""
+  }
+  paste0(rounded, " ", stars)
+}
+
+pairwise_tests <- list(
+  "I. Distance" = c("Merged_100", "Merged_550"),
+  "II. Motion" = c("Merged_550", "bg_Merged_clips_sum"),
+  "III. Patterns" = c("bg_Merged_clips_sum", "both_Merged_clips_sum")
+)
+
+for (response_var in vars_to_test) {
+  
+  # Store interaction p-values
+  interaction_ps <- list()
+  
+  for (test_name in names(pairwise_tests)) {
+    test_levels <- pairwise_tests[[test_name]]
+    
+    # Subset to the relevant levels
+    subset_data <- subset(combined_df, test %in% test_levels)
+    subset_data$test <- factor(subset_data$test, levels = test_levels)
+    
+    formula <- as.formula(paste0("`", response_var, "` ~ Species * test"))
+    model <- lm(formula, data = subset_data)
+    
+    aov_res <- car::Anova(model, type = "II")
+    interaction_p <- aov_res["Species:test", "Pr(>F)"]
+    interaction_ps[[test_name]] <- interaction_p
+  }
+  
+# Format subtitle text
+subtitle_text <- paste0(
+  "Interaction p-values: ",
+  "I. Distance = ", format_pvalue(interaction_ps[["I. Distance"]]), "; ",
+  "II. Motion = ", format_pvalue(interaction_ps[["II. Motion"]]), "; ",
+  "III. Patterns = ", format_pvalue(interaction_ps[["III. Patterns"]])
+)
+
+  # Refit full model for plotting
+  full_model <- lm(as.formula(paste0("`", response_var, "` ~ Species * test")), data = combined_df)
+  emm <- emmeans(full_model, ~ Species * test)
+  emm_df <- as.data.frame(emm)
+  emm_df$test <- factor(emm_df$test, levels = c("Merged_100", "Merged_550", "bg_Merged_clips_sum", "both_Merged_clips_sum"))
+  
+  x_labels <- c(
+    "Merged_100" = "Stationary at 10cm",
+    "Merged_550" = "Stationary at 55cm",
+    "bg_Merged_clips_sum" = "Moving\n(patterns present)",
+    "both_Merged_clips_sum" = "Moving\n(patterns removed)"
+  )
+  
+  # Plot
+  plot <- ggplot(combined_df, aes(x = test, y = .data[[response_var]], color = Species)) +
+    geom_jitter(width = 0.1, alpha = 0.4, size = 2, color = "grey60") +
+    geom_point(data = emm_df, aes(y = emmean), size = 3, position = position_dodge(0.3)) +
+    geom_line(data = emm_df, aes(y = emmean, group = Species), position = position_dodge(0.3)) +
+    geom_errorbar(data = emm_df,
+                  aes(y = emmean, ymin = emmean - SE, ymax = emmean + SE),
+                  width = 0.1, position = position_dodge(0.3)) +
+    scale_x_discrete(labels = x_labels) +
+    scale_color_manual(values = species_colours, labels = species_labels) +
+    labs(
+      title = paste(response_var, "- Combined Interaction Plot"),
+      subtitle = subtitle_text,
+      x = NULL,
+      y = response_var
+    ) +
+    theme_minimal() +
+    theme(legend.position = "top", 
+          legend.text = element_text(face = "italic"),
+          plot.subtitle = element_text(size = 10))
+  
+  # Save plot
+  ggsave(
+    filename = paste0("Figures/ColourPatterns/Plots/Combined_", gsub("[: ]", "_", response_var), "_interaction_plot.png"),
+    plot = plot,
+    width = 8, height = 6, dpi = 300
+  )
+}
+
+
+```
+
+
+## Plotting ANOVA interactions
+
+```{r}
+library(ggplot2)
+library(emmeans)
+
+# Helper to get significance stars
+get_significance <- function(p) {
+  if (is.na(p)) return("")
+  if (p < 0.001) return("***")
+  if (p < 0.01) return("**")
+  if (p < 0.05) return("*")
+  if (p < 0.1) return(".")
+  return("")
+}
+
+# Custom x-axis orders for each dataset
+test_levels <- list(
+  Distance = c("Merged_100", "Merged_550"),
+  Motion = c("Merged_550", "bg_Merged_clips_sum"),
+  ColourTreatment = c("both_Merged_clips_sum", "bg_Merged_clips_sum")
+)
+
+# Custom tick labels for the x-axis
+test_labels <- list(
+  Distance = c(
+    "Merged_100" = "Stationary at 10cm",
+    "Merged_550" = "Stationary at 55cm"
+  ),
+  Motion = c(
+    "Merged_550" = "Stationary at 55cm",
+    "bg_Merged_clips_sum" = "Moving at ~55cm\n(body patterns present)"
+  ),
+  ColourTreatment = c(
+    "both_Merged_clips_sum" = "Moving at ~55cm\n(body patterns removed)",
+    "bg_Merged_clips_sum" = "Moving at ~55cm\n(body patterns present)"
+  )
+)
+
+# Loop through each dataset and variable
+for (dataset_name in names(comparison_dfs)) {
+  data <- comparison_dfs[[dataset_name]]
+
+  # Set test factor level order
+  data$test <- factor(data$test, levels = test_levels[[dataset_name]])
+  
+  for (response_var in vars_to_test) {
+    formula <- as.formula(paste0("`", response_var, "` ~ Species * test"))
+    model <- lm(formula, data = data)
+
+    # Get ANOVA p-value for interaction
+    aov_res <- car::Anova(model, type = "II")
+    interaction_row <- aov_res[rownames(aov_res) == "Species:test", ]
+    interaction_p <- interaction_row[["Pr(>F)"]]
+    interaction_star <- get_significance(interaction_p)
+
+    # Get estimated marginal means
+    emm <- emmeans(model, ~ Species * test)
+    emm_df <- as.data.frame(emm)
+    emm_df$test <- factor(emm_df$test, levels = test_levels[[dataset_name]])  # Match factor order for plotting
+
+    # Build the plot
+    plot <- ggplot(data, aes(x = test, y = .data[[response_var]], color = Species)) +
+      geom_jitter(width = 0.1, alpha = 0.5, size = 2) +
+      geom_point(data = emm_df, aes(x = test, y = emmean, color = Species), size = 3, position = position_dodge(0.2)) +
+      geom_line(data = emm_df, aes(x = test, y = emmean, group = Species, color = Species), position = position_dodge(0.2)) +
+      geom_errorbar(data = emm_df,
+                    aes(x = test, y = emmean, ymin = emmean - SE, ymax = emmean + SE, color = Species),
+                    width = 0.1, position = position_dodge(0.2)) +
+      scale_color_manual(values = species_colours) +
+      scale_x_discrete(labels = test_labels[[dataset_name]]) +  # <-- Add custom axis labels
+      labs(
+        title = paste(response_var, "-", dataset_name, "Interaction Plot"),
+        y = response_var,
+        x = NULL,
+        subtitle = paste("Interaction p =", signif(interaction_p, 3), interaction_star)
+      ) +
+      theme_minimal() +
+      theme(legend.position = "top")
+
+    # Save the plot
+    ggsave(
+      filename = paste0("Figures/ColourPatterns/Plots/", dataset_name, "_", gsub("[: ]", "_", response_var), "_interaction_plot.png"),
+      plot = plot,
+      width = 8, height = 6, dpi = 300
+    )
+  }
+}
+
+```
+
+
+----------------------------------------------------------------------
+## Motion Speed and Pattern?

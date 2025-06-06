@@ -1,0 +1,3 @@
+"0","# Eigenvalues"
+"0","eig.val <- get_eigenvalue(res.pca)"
+"0","eig.val"

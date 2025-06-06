@@ -1,0 +1,48 @@
+"0","# renv::init() #initialise renv"
+"0","renv::snapshot() #update renv"
+"1","A large number of files (1426 in total) have been discovered.
+"
+"1","It may take renv a long time to crawl these files for dependencies.
+"
+"1","Consider using .renvignore to ignore irrelevant files.
+"
+"1","See `?renv::dependencies` for more information.
+"
+"1","Set `options(renv.config.dependencies.limit = Inf)` to disable this warning.
+"
+"1","
+"
+"1","The following package(s) have unsatisfied dependencies:
+- MatrixModels requires Matrix (>= 1.6-0), but version 1.5-1  is installed
+- qgam         requires mgcv (>= 1.9)    , but version 1.8-41 is installed
+Consider updating the required dependencies as appropriate.
+
+"
+"0","y"
+"1","
+"
+"1","The following package(s) will be updated in the lockfile:
+"
+"1","
+"
+"1","# CRAN -----------------------------------------------------------------------
+"
+"1","- estimability   [* -> 1.5.1]
+"
+"1","
+"
+"1","# RSPM -----------------------------------------------------------------------
+"
+"1","- effectsize     [* -> 1.0.0]
+"
+"1","- emmeans        [* -> 1.11.1]
+"
+"1","- parameters     [* -> 0.25.0]
+"
+"1","
+"
+"0","y"
+"1","
+"
+"1","- Lockfile written to ""C:/Users/flora/Desktop/Oxford/Year 4/Analysis/renv.lock"".
+"

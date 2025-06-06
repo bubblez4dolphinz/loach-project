@@ -1,0 +1,2 @@
+"0","setwd(""."") #set working directory to where the file is saved"
+"0","rm(list = ls(all.names = TRUE)) #clear workspace"

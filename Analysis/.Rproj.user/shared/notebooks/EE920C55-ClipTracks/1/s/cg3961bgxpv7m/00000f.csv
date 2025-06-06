@@ -1,0 +1,1501 @@
+"0","# List all csv files in the directory"
+"0","track_dir <- ""RawData/Tracks"""
+"0","track_files <- list.files(track_dir, pattern = ""_track\\.csv$"", full.names = FALSE)"
+"0",""
+"0","# Optional: remove any non-standard files if needed"
+"0","track_files <- sort(track_files)"
+"0","# Remove sub-clips (i.e. parts a, b, c etc)"
+"0","track_files <- track_files[!grepl(""_\\d+[a-z]_"", track_files)]"
+"0",""
+"0","# Read predator data and keep only what we need"
+"0","pred_df <- read.csv(""RawData/pointplot.csv"") %>%"
+"0","  select(TrialID, x_pred, y_pred)"
+"0",""
+"0","# Define pixel-to-metre scale factor"
+"0","scale_factor <- 2 / 24.55  # 2cm = 25.55 pixels (measured from circle perimeter/pi = diameter in paddling pool)"
+"0",""
+"0","# Parse and enrich metadata"
+"0","meta_data <- tibble(filename = track_files) %>%"
+"0","  mutate("
+"0","    ClipName = str_remove(filename, ""_track\\.csv$""),"
+"0","    Genus = word(ClipName, 1, sep = ""_""),"
+"0","    species = word(ClipName, 2, sep = ""_""),"
+"0","    Treatment = word(ClipName, 3, sep = ""_""),"
+"0","    TrialNum = word(ClipName, 4, sep = ""_""),"
+"0","    ClipNum = word(ClipName, 5, sep = ""_""),"
+"0","    View = word(ClipName, 6, sep = ""_""),"
+"0","    Species = paste(Genus, species, sep = ""_""),"
+"0","    TrialID = paste(Species, Treatment, TrialNum, sep = ""_""),"
+"0","    Group = paste(Species, Treatment, sep = ""-"")"
+"0","  ) %>%"
+"0","  select(filename, ClipName, TrialID, Group, Species, Treatment) %>%"
+"0","  left_join(pred_df, by = ""TrialID"") %>%"
+"0","  mutate(across(c(x_pred, y_pred), ~ .x * scale_factor))"
+"0",""
+"0",""
+"0","# Build trajectories"
+"0","csvStruct <- list(x = ""x"", y = ""y"", time = ""frame"", fps = 240)"
+"0",""
+"0","trjs <- lapply(meta_data$filename, function(fname) {"
+"0","  df <- read_csv(file.path(track_dir, fname))"
+"0","  "
+"0","  raw_trj <- TrajFromCoords(df, xCol = ""x"", yCol = ""y"", timeCol = NULL, fps = 240, spatialUnits = ""pixels"", timeUnits = ""frames"")"
+"0","  raw_trj <- TrajScale(raw_trj, scale = scale_factor, unit = ""cm"")"
+"0","  "
+"0","  smooth_trj <- raw_trj"
+"0","  if (nrow(raw_trj) > 41) {"
+"0","    smooth_trj <- TrajSmoothSG(raw_trj, p = 3, n = 31)"
+"0","  }"
+"0","  "
+"0","  return(list(raw = raw_trj, smooth = smooth_trj))"
+"0","})"
+"2","[1mRows: [22m[34m154[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m141[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m109[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m83[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m140[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m126[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m205[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m54[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m56[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m78[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m79[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m148[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m97[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m122[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m85[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m117[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m63[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m107[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m68[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m80[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m136[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m49[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m189[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m97[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m67[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m187[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m133[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m106[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m122[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m87[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m97[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m132[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m117[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m105[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m141[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m104[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m116[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m94[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m133[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m152[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m43[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m147[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m212[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m177[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m83[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m334[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m47[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m184[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m350[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m87[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m325[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m163[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m229[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m380[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m172[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m279[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m163[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m188[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m225[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m68[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m200[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m248[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m70[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m59[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m168[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m81[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m76[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m262[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m91[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m92[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m131[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m64[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m410[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m101[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m266[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m162[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m420[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m177[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m153[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m116[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m117[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m144[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m114[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m146[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m166[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m140[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m166[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m74[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m114[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m143[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m157[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m162[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m155[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m117[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m132[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m163[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m132[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m109[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m165[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m127[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m113[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m117[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m151[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m226[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m62[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m121[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m411[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m188[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m156[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m59[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m100[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m95[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m141[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m154[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m189[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m225[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m146[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m105[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m105[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m165[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m146[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m176[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m90[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m331[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m352[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m194[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m149[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m179[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m148[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m105[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m153[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m154[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m81[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m144[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m134[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m224[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m227[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m216[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m169[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m230[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m308[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m379[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m254[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m269[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m169[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m128[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m106[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m175[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m195[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m135[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m222[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m297[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m480[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m337[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m226[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m108[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m557[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m334[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m456[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m433[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m644[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m383[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m340[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m127[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m245[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m154[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m120[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m116[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m166[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m198[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m405[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m152[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m85[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m155[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m149[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m110[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m117[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m111[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m132[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"2","[1mRows: [22m[34m147[39m [1mColumns: [22m[34m3[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (1): frame
+[32mdbl[39m (2): x, y"
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"0","# Attach ClipNames"
+"0","names(trjs) <- meta_data$ClipName"
+"0",""
+"0","# I need Treatment, Species and TrialID to be factors not characters"
+"0","meta_data$Treatment <- as.factor(meta_data$Treatment)"
+"0","meta_data$Species <- as.factor(meta_data$Species)"
+"0","meta_data$TrialID <- as.factor(meta_data$TrialID)"
+"0",""
+"0","# Extract just the smooth tracks"
+"0","smoothed_trjs <- lapply(trjs, function(x) x$smooth)"

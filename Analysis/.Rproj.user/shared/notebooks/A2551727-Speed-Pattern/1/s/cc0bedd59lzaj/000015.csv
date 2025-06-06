@@ -1,0 +1,75 @@
+"0","# Vector of individuals to keep"
+"0","indivs <- c("
+"0","  ""Botia_lohachata_C_7"", ""Botia_lohachata_C_8"", ""Botia_lohachata_C_10"", ""Botia_lohachata_C_13"","
+"0","  ""Botia_lohachata_P_1"", ""Botia_lohachata_P_2"", ""Botia_lohachata_P_3"", ""Botia_lohachata_P_4"","
+"0","  ""Botia_lohachata_P_6"", ""Botia_lohachata_P_8"", ""Botia_lohachata_P_9"", "
+"0","  ""Botia_lohachata_P_13"", ""Botia_lohachata_P_14"""
+"0",")"
+"0",""
+"0","# Load and process each dataset"
+"0","kine_data <- read_csv(""CleanData/summary_clip_kinematics.csv"") %>%"
+"0","  filter(TrialID %in% indivs) %>%                           # Keep rows with valid TrialID"
+"0","  filter(!grepl(""_\\d+[a-z]_D$"", ClipName)) %>%            # Exclude subclips in ClipName"
+"0","  rename(TrialName = TrialID) %>%"
+"0","  mutate("
+"0","    ClipName = str_remove(ClipName, ""_D$""),                # Remove trailing ""_D"""
+"0","    speed = median_speed"
+"0","  ) %>%"
+"0","  select(TrialName, ClipName, speed)"
+"2","[1mRows: [22m[34m180[39m [1mColumns: [22m[34m15[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m────────────────────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (6): filename, ClipName, TrialID, Group, Species, Treatment
+[32mdbl[39m (9): x_pred, y_pred, median_speed, cv_speed, max_acc, mean_dist2pred, trans_..."
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"0","clip_qcpa_data <- read_csv(""CleanData/bg_Merged_clips_sum_PCA.csv"") %>%"
+"0","  filter(TrialName %in% indivs) %>%"
+"0","  select(ClipName, clip_CAA_Asp = `med_CAA:Asp`) %>%"
+"0","  left_join(kine_data, by = ""ClipName"")  # Add speed from kine_data"
+"2","[1mRows: [22m[34m188[39m [1mColumns: [22m[34m320[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m────────────────────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m   (5): ClipName, fullClipName, TrialName, Species, colTreatment
+[32mdbl[39m (315): Individual, med_CAA:Sc, cv_CAA:Sc, med_CAA:Jc, cv_CAA:Jc, med_CAA:St,..."
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"0","pca_formula <- readRDS(""PC1_formula.rds"")"
+"0",""
+"0","photo_qcpa_data <- read_csv(""CleanData/Merged_100_PCA.csv"") %>%"
+"0","  filter(TrialName %in% indivs) %>%"
+"0","  calc_PC1(""PC1_formula.rds"", pc1_colname = ""PC1"") %>%"
+"0","  select(TrialName, photo_CAA_Asp = `CAA:Asp`, PC1 = PC1)"
+"2","[1mRows: [22m[34m47[39m [1mColumns: [22m[34m160[39m"
+"2","[36m──[39m [1mColumn specification[22m [36m────────────────────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m   (2): TrialName, Species
+[32mdbl[39m (158): Individual, CAA:Sc, CAA:Jc, CAA:St, CAA:Jt, CAA:Hc, CAA:Qc, CAA:Ht, C..."
+"2","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message."
+"0","# Combine both into one dataset"
+"0","combined_data <- photo_qcpa_data %>%"
+"0","  left_join(clip_qcpa_data, by = ""TrialName"")"
+"0",""
+"0","# View structure"
+"0","glimpse(combined_data)"
+"1","Rows: 58"
+"1",""
+"1","
+"
+"1","Columns: 6"
+"1",""
+"1","
+"
+"1","$ TrialName     [3m[38;5;246m<chr>[39m[23m ""Botia_lohachata_C_10""[38;5;246m, [39m""Botia_lohachata_C_10""[38;5;246m, [39m""Botia_lohac…
+$ photo_CAA_Asp [3m[38;5;246m<dbl>[39m[23m 0.5656567[38;5;246m, [39m0.5656567[38;5;246m, [39m0.5656567[38;5;246m, [39m0.5667236[38;5;246m, [39m0.5667236[38;5;246m, [39m0.566…
+$ PC1           [3m[38;5;246m<dbl>[39m[23m 0.2785650[38;5;246m, [39m0.2785650[38;5;246m, [39m0.2785650[38;5;246m, [39m0.3305963[38;5;246m, [39m0.3305963[38;5;246m, [39m0.330…
+$ ClipName      [3m[38;5;246m<chr>[39m[23m ""Botia_lohachata_C_10_1""[38;5;246m, [39m""Botia_lohachata_C_10_2""[38;5;246m, [39m""Botia_l…
+$ clip_CAA_Asp  [3m[38;5;246m<dbl>[39m[23m 0.8001740[38;5;246m, [39m0.7367352[38;5;246m, [39m0.7559810[38;5;246m, [39m0.7611166[38;5;246m, [39m0.7961189[38;5;246m, [39m0.717…
+$ speed         [3m[38;5;246m<dbl>[39m[23m 33.336334[38;5;246m, [39m40.062598[38;5;246m, [39m32.740408[38;5;246m, [39m31.831805[38;5;246m, [39m29.137061[38;5;246m, [39m32.86…"
+"1",""
+"1","
+"

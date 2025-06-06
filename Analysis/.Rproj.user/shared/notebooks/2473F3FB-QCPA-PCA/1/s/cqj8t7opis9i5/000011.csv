@@ -1,0 +1,4 @@
+"0","packages <- c(""corrr"", ""ggcorrplot"", ""FactoMineR"", ""tidyverse"", ""factoextra"", ""ggbiplot"", ""svglite"", ""gt"", ""car"", ""broom.mixed"", ""purrr"", ""janitor"", ""stringr"", ""emmeans"", ""dplyr"")"
+"0",""
+"0",""
+"0","check_and_load_packages(packages)"

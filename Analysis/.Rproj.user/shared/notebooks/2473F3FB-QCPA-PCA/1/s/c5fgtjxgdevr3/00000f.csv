@@ -1,0 +1,11 @@
+"0","gt_tbl2 <- gt_tbl %>%
+  tab_options(
+    data_row.padding = px(8),          # Padding for all data rows
+    row_group.padding = px(100),        # Extra padding for group headers
+    heading.padding = px(100)           # Padding for the main title
+  )
+
+gtsave(gt_tbl2, ""Figures/ColourPatterns/Models/THINcombined_ANOVA_table.png"")
+"
+"2","file:///C:/Users/flora/AppData/Local/Temp/RtmpKGJW5a/filef4403c903d35.html screenshot completed
+"

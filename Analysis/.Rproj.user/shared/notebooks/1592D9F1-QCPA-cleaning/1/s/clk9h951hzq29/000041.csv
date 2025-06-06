@@ -1,0 +1,7 @@
+"0","# Merge the dataframes (and rename Name column)"
+"0","merge_qcpa_leia("
+"0","  qcpa_leia_list = ls(pattern = ""^(QCPAres|LEIAres)_""),"
+"0","  suffixes = c(""_100"", ""_550"", ""_clips"")"
+"0",")"
+"1","$Merged_100
+"

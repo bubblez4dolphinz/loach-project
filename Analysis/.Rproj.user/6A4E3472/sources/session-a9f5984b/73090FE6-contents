@@ -1,0 +1,195 @@
+---
+title: "Speed-Pattern"
+author: "Flora Timney"
+date: "2025-05-13"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+I want to investigate how speed and colour pattern (Aspect Ratio/CAA:Asp ; 0 = hrz elongated, 0.5 = round, 1 = vrt elongated)
+
+
+Here I want to use individuals that I know the identity of, and investigate how their appearance during motion is a product of their appearance while stationary and how fast they move. (regardless of distance to predator and expTreatment)
+
+I only care about Botia lohachata and the individuals I could match
+
+
+TrialName for qcpa_data, and TrialID for kine_data
+
+```{r setup-renv, message = FALSE, warning = FALSE, echo=FALSE}
+# renv::init() #initialise renv
+renv::snapshot() #update renv
+```
+
+```{r setup-wd and clear workspace, message = FALSE, warning = FALSE, echo=FALSE}
+setwd(".") #set working directory to where the file is saved
+rm(list = ls(all.names = TRUE)) #clear workspace
+```
+
+```{r, echo=FALSE}
+source("Functions/packages.r")
+source("Functions/extract_metadata.r")
+source("Functions/clean_dfs.r")
+source("Functions/modelling.r")
+source("Functions/overlay_EMD.r")
+source("Functions/calculations.r")
+```
+
+```{r Install and load packages, message = FALSE, warning = FALSE, echo=FALSE}
+packages <- c("tidyverse", "bestNormalize", "performance", "DHARMa", "glmmTMB", "ggeffects", "ggplot2", "dplyr")
+check_and_load_packages(packages)
+```
+
+## Create Dataframe for Analysis
+```{r}
+# Vector of individuals to keep
+indivs <- c(
+  "Botia_lohachata_C_7", "Botia_lohachata_C_8", "Botia_lohachata_C_10", "Botia_lohachata_C_13",
+  "Botia_lohachata_P_1", "Botia_lohachata_P_2", "Botia_lohachata_P_3", "Botia_lohachata_P_4",
+  "Botia_lohachata_P_6", "Botia_lohachata_P_8", "Botia_lohachata_P_9", 
+  "Botia_lohachata_P_13", "Botia_lohachata_P_14"
+)
+
+# Load and process each dataset
+kine_data <- read_csv("CleanData/summary_clip_kinematics.csv") %>%
+  filter(TrialID %in% indivs) %>%                           # Keep rows with valid TrialID
+  filter(!grepl("_\\d+[a-z]_D$", ClipName)) %>%            # Exclude subclips in ClipName
+  rename(TrialName = TrialID) %>%
+  mutate(
+    ClipName = str_remove(ClipName, "_D$"),                # Remove trailing "_D"
+    speed = median_speed
+  ) %>%
+  select(TrialName, ClipName, speed)
+
+clip_qcpa_data <- read_csv("CleanData/bg_Merged_clips_sum_PCA.csv") %>%
+  filter(TrialName %in% indivs) %>%
+  select(ClipName, clip_CAA_Asp = `med_CAA:Asp`) %>%
+  left_join(kine_data, by = "ClipName")  # Add speed from kine_data
+
+pca_formula <- readRDS("PC1_formula.rds")
+
+photo_qcpa_data <- read_csv("CleanData/Merged_100_PCA.csv") %>%
+  filter(TrialName %in% indivs) %>%
+  calc_PC1("PC1_formula.rds", pc1_colname = "PC1") %>%
+  select(TrialName, photo_CAA_Asp = `CAA:Asp`, PC1 = PC1)
+
+
+
+
+# Combine both into one dataset
+combined_data <- photo_qcpa_data %>%
+  left_join(clip_qcpa_data, by = "TrialName")
+
+# View structure
+glimpse(combined_data)
+
+```
+
+## Fitting model and saving outputs
+
+```{r}
+model <- glmmTMB(clip_CAA_Asp ~ speed*photo_CAA_Asp + (1|TrialName), data=combined_data)
+tbl <- glmmTMB_to_gt(model, "Aspect Ratio with Speed")
+
+# tbl is your gt table from glmTMB_to_gt
+tbl %>%
+  fmt_number(
+    columns = vars(p.value),  # adjust column name if needed
+    decimals = 6             # or more decimals you want, no rounding to fewer digits
+  ) -> tbl_unrounded
+
+gtsave(tbl_unrounded, filename = "Figures/MotionPatterns/Models/Speed-Pattern_CAA_Asp_model_summary.png")
+
+tbl_unrounded
+
+```
+
+## Plotting
+
+```{r}
+# Create photo points at speed = 0
+photo_points <- combined_data %>%
+  select(TrialName, photo_CAA_Asp) %>%
+  mutate(
+    speed = 0,
+    CAA_Asp = photo_CAA_Asp,
+    type = "photo"
+  )
+
+# Clip points (keep real speed)
+clip_points <- combined_data %>%
+  select(TrialName, speed, clip_CAA_Asp) %>%
+  mutate(
+    CAA_Asp = clip_CAA_Asp,
+    type = "clip"
+  )
+
+# Combine both for plotting
+plot_data <- bind_rows(photo_points, clip_points)
+
+# Create a dataset of lines connecting each photo to its corresponding clip
+web_lines <- left_join(
+  photo_points %>% select(TrialName, photo_speed = speed, photo_CAA_Asp = CAA_Asp),
+  clip_points %>% select(TrialName, clip_speed = speed, clip_CAA_Asp = CAA_Asp),
+  by = "TrialName"
+)
+
+# Plot
+speed_CAA_Asp_plot <- ggplot(plot_data, aes(x = speed, y = CAA_Asp, color = type)) +
+  # Draw grey lines connecting each photo to its clip
+  geom_segment(
+    data = web_lines,
+    aes(
+      x = photo_speed, y = photo_CAA_Asp,
+      xend = clip_speed, yend = clip_CAA_Asp
+    ),
+    inherit.aes = FALSE,
+    color = "grey80",
+    alpha = 0.2
+  ) +
+  # Fit regression line on clip data only
+  geom_smooth(
+    data = clip_points,
+    aes(x = speed, y = CAA_Asp),
+    method = "lm",
+    se = TRUE,
+    color = "grey20"
+  ) +
+  # Plot points
+  geom_point(size = 2) +
+  scale_color_manual(values = c(photo = "sienna4", clip = "#E69F00")) +
+  theme_minimal() +
+  labs(
+    x = "Speed",
+    y = "CAA:Asp",
+    color = "Data Type",
+    title = "How Aspect Ratio Changes with Speed"
+  ) +
+  theme(
+    legend.position = "bottom"                   # legend at bottom
+  )
+
+speed_CAA_Asp_plot
+
+ggsave("Figures/MotionPatterns/Plots/Speed-Pattern_plot.svg", plot = speed_CAA_Asp_plot, width = 10, height = 6)
+```
+
+
+# PC1 and speed
+```{r}
+library(ggplot2)
+
+ggplot(combined_data, aes(x = speed, y = PC1)) +
+  geom_point() +
+  labs(
+    title = "Scatter plot of Speed vs PC1",
+    x = "Speed",
+    y = "PC1"
+  ) +
+  theme_minimal()
+```
+
+

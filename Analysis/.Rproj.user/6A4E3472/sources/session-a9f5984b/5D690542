@@ -1,0 +1,32 @@
+{
+    "id": "5D690542",
+    "path": "C:/Users/flora/Desktop/Oxford/Year 4/Analysis/QCPA-PCA.Rmd",
+    "project_path": "QCPA-PCA.Rmd",
+    "type": "r_markdown",
+    "hash": "3098782007",
+    "contents": "",
+    "dirty": false,
+    "created": 1747860408609.0,
+    "source_on_save": false,
+    "relative_order": 4,
+    "properties": {
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "535,65",
+        "scrollLine": "519",
+        "last_setup_crc32": "a9f5984b90081940",
+        "rmdVisualMode": "false",
+        "rmdVisualCollapsedChunks": "",
+        "rmdVisualModeLocation": "7440:4230",
+        "rmdVisualWrapConfigured": "true",
+        "docOutlineVisible": "1"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1749176372,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1749176373227,
+    "read_only": false,
+    "read_only_alternatives": []
+}

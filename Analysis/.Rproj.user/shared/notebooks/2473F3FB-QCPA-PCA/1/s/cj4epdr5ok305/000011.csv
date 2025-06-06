@@ -1,0 +1,8 @@
+"0","# Save as PNG
+gtsave(gt_var_contrib, ""Figures/ColourPatterns/PCA/var_contributions.png"")
+"
+"2","file:///C:/Users/flora/AppData/Local/Temp/RtmpYxNBu6/file118881a2e6766.html screenshot completed
+"
+"0","gtsave(var.contrib_wide, ""Figures/ColourPatterns/PCA/Widevar_contributions.png"", vwidth = 6000)"
+"2","file:///C:/Users/flora/AppData/Local/Temp/RtmpYxNBu6/file118884c2b61b7.html screenshot completed
+"

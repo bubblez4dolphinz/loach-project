@@ -1,0 +1,8 @@
+"0","points(circular(df_left$signed_diff, units = ""degrees""),"
+"0","       col = ""darkgreen"", pch = 16)"
+"0","legend(""topleft"", legend = c(""Patterned"", ""Plain""), col = c(""darkseagreen2"", ""darkgreen""), pch = 16, bty = ""n"")"
+"0",""
+"0","# Plot for Right Clips"
+"0","plot(circular(df_right$signed_diff[df_right$treatment == ""bg""], units = ""degrees""),"
+"0","     main = ""Right Clips"","
+"0","     col = ""thistle2"", pch = 16, stack = TRUE, shrink = 1)"

@@ -1,0 +1,989 @@
+---
+title: "ClipTrackAnalysis"
+author: "Flora Timney"
+date: "2025-04-26"
+output: html_document
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+# Kinematic Analysis of Clips Using trajr
+In this script, I load in the tracks from all the dorsal clips and
+calculate median and coefficient of variance for speed, the maximum absolute value of acceleration as well as the distance from predator (modeled as the centroid point). I normalise the data, visualize the tracks in space, explore the distributions of these three key kinematic variables within and between species and treatments, and create mixed effect models using them as response variables. 
+
+TL/DR
+Botia lohachata species swims faster on average (median) than the Yasuhikotakia modesta species, and fish seem to swim faster when they are closer to the predator; no other significant terms. Speed with a clip varies more (CoV) in the predator treatment than in the control treatment; no other significant terms. Maximum absolute acceleration is also greater when the fish is closer to the predator; no other significant terms. Since the models where mean_dist2pred is significant do not have significant interaction terms of treatment*mean_dist2pred, I think the effect is likely an artefact of the triangular shaped area rather than to do with the predator model.
+
+
+# I. Set-up 
+```{r setup-renv, message = FALSE, warning = FALSE, echo=FALSE}
+# renv::init() #initialise renv
+renv::snapshot() #update renv
+```
+
+```{r setup-wd and clear workspace, message = FALSE, warning = FALSE, echo=FALSE}
+setwd(".") #set working directory to where the file is saved
+rm(list = ls(all.names = TRUE)) #clear workspace
+```
+
+```{r}
+source("Functions/packages.r")
+source("Functions/extract_metadata.r")
+source("Functions/clean_dfs.r")
+source("Functions/modelling.r")
+source("Functions/calculations.r")
+```
+
+Packages:
+```{r Install and load packages, message = FALSE, warning = FALSE, echo=FALSE}
+packages <- c("trajr", "scales", "tidyverse", "rlang", "bestNormalize", "ggplot2", "ggpubr", "gridExtra", "bbmle", "glmmTMB", "viridis", "emmeans", "fields", "viridisLite", "distributional", "ggdist", "patchwork", "DHARMa", "performance", "gridGraphics", "gt", "webshot2", "magick", "broom.mixed", "conflicted", "dplyr")
+
+check_and_load_packages(packages)
+save_package_info()
+
+conflict_prefer("sd", "stats")
+conflict_prefer("boxcox", "bestNormalize")
+conflict_prefer("chisq.test", "stats")
+conflict_prefer("filter", "dplyr")
+```
+
+```{r setup-standardise plots, message = FALSE, warning = FALSE, echo=FALSE}
+theme_set(theme_minimal()) #standardise the plots
+
+species_colours <- c("Botia_lohachata" = "#E69F00", "Yasuhikotakia_modesta" = "#0072B2")
+species_labels <- c(
+  "Botia_lohachata" = "Botia lohachata",
+  "Yasuhikotakia_modesta" = "Yasuhikotakia modesta"
+)
+```
+
+```{r}
+# Define a wrapper to convert base plot to grob
+capture_plot <- function(expr) {
+  grid.newpage()
+  grid.echo(expr)
+  grid.grab()
+}
+```
+
+## Loading in data
+
+1.  Loading in data and extracting meta data from the clip name
+
+```{r, include=FALSE}
+# List all csv files in the directory
+track_dir <- "RawData/Tracks"
+track_files <- list.files(track_dir, pattern = "_track\\.csv$", full.names = FALSE)
+
+# Optional: remove any non-standard files if needed
+track_files <- sort(track_files)
+# Remove sub-clips (i.e. parts a, b, c etc)
+track_files <- track_files[!grepl("_\\d+[a-z]_", track_files)]
+
+# Read predator data and keep only what we need
+pred_df <- read.csv("RawData/pointplot.csv") %>%
+  select(TrialID, x_pred, y_pred)
+
+# Define pixel-to-metre scale factor
+scale_factor <- 2 / 24.55  # 2cm = 25.55 pixels (measured from circle perimeter/pi = diameter in paddling pool)
+
+# Parse and enrich metadata
+meta_data <- tibble(filename = track_files) %>%
+  mutate(
+    ClipName = str_remove(filename, "_track\\.csv$"),
+    Genus = word(ClipName, 1, sep = "_"),
+    species = word(ClipName, 2, sep = "_"),
+    Treatment = word(ClipName, 3, sep = "_"),
+    TrialNum = word(ClipName, 4, sep = "_"),
+    ClipNum = word(ClipName, 5, sep = "_"),
+    View = word(ClipName, 6, sep = "_"),
+    Species = paste(Genus, species, sep = "_"),
+    TrialID = paste(Species, Treatment, TrialNum, sep = "_"),
+    Group = paste(Species, Treatment, sep = "-")
+  ) %>%
+  select(filename, ClipName, TrialID, Group, Species, Treatment) %>%
+  left_join(pred_df, by = "TrialID") %>%
+  mutate(across(c(x_pred, y_pred), ~ .x * scale_factor))
+
+
+# Build trajectories
+csvStruct <- list(x = "x", y = "y", time = "frame", fps = 240)
+
+trjs <- lapply(meta_data$filename, function(fname) {
+  df <- read_csv(file.path(track_dir, fname))
+  
+  raw_trj <- TrajFromCoords(df, xCol = "x", yCol = "y", timeCol = NULL, fps = 240, spatialUnits = "pixels", timeUnits = "frames")
+  raw_trj <- TrajScale(raw_trj, scale = scale_factor, unit = "cm")
+  
+  smooth_trj <- raw_trj
+  if (nrow(raw_trj) > 41) {
+    smooth_trj <- TrajSmoothSG(raw_trj, p = 3, n = 31)
+  }
+  
+  return(list(raw = raw_trj, smooth = smooth_trj))
+})
+
+# Attach ClipNames
+names(trjs) <- meta_data$ClipName
+
+# I need Treatment, Species and TrialID to be factors not characters
+meta_data$Treatment <- as.factor(meta_data$Treatment)
+meta_data$Species <- as.factor(meta_data$Species)
+meta_data$TrialID <- as.factor(meta_data$TrialID)
+
+# Extract just the smooth tracks
+smoothed_trjs <- lapply(trjs, function(x) x$smooth)
+```
+
+## Calculating metrics
+2.  Calculating kinematic metrics for each track
+```{r}
+results <- list()
+frame_by_frame_all <- list()
+
+for (clipname in names(smoothed_trjs)) {
+  trj <- smoothed_trjs[[clipname]]
+  meta_row <- meta_data %>% filter(ClipName == clipname)
+
+  if (nrow(meta_row) == 0 || any(is.na(meta_row$x_pred), is.na(meta_row$y_pred))) next
+
+  pred_pos <- c(meta_row$x_pred, meta_row$y_pred)
+
+  res <- characteriseTrajectory(trj, pred_pos, traj_name = clipname)
+
+  # Add clip name and metadata to frame-by-frame data
+  raw <- res$frame_data %>%
+    mutate(ClipName = clipname) %>%
+    left_join(meta_row, by = "ClipName")
+
+  frame_by_frame_all[[clipname]] <- raw
+  results[[clipname]] <- res$summary %>% mutate(ClipName = clipname)
+}
+
+# Combine
+frame_by_frame_df <- bind_rows(frame_by_frame_all)
+summary_df <- bind_rows(results)
+
+# Merge with metadata
+meta_stats <- left_join(meta_data, summary_df, by = "ClipName")
+
+# Save optional outputs
+write_csv(frame_by_frame_df, "CleanData/frame_by_frame_kinematics.csv")
+```
+
+
+## Normalising data
+3.  Checking and normalizing the data distributions (bestNormalize)
+
+I used the bestNormalize() function to work out which transformations were suitable and I ended up deciding that boxcox was best for them all. 
+```{r, include=FALSE}
+# 1. Median Speed - Box-Cox
+trans_median_speed <- boxcox(meta_stats$median_speed)
+meta_stats$trans_median_speed <- predict(trans_median_speed)
+
+# 2. Coefficient of Variation of Speed - Log_b(x + a), standardized manually
+trans_cv_speed <- boxcox(meta_stats$cv_speed)
+meta_stats$trans_cv_speed <- predict(trans_cv_speed)
+
+# 3. Maximum Absolute Acceleration - boxcox
+trans_max_acc <- boxcox(meta_stats$max_acc)
+meta_stats$trans_max_acc <- predict(trans_max_acc)
+
+write.csv(meta_stats, "CleanData/summary_clip_kinematics.csv", row.names = FALSE)
+```
+
+```{r histplots, echo=FALSE, warnings=FALSE, messages=FALSE}
+# Create individual ggplot histograms
+p1 <- ggplot(meta_stats, aes(x = median_speed)) +
+  geom_histogram(fill = "skyblue", color = "white") +
+  ggtitle("Median Speed") +
+  theme(axis.title.x = element_blank(), axis.text.x = element_blank())
+
+p2 <- ggplot(meta_stats, aes(x = cv_speed)) +
+  geom_histogram(fill = "lightgreen", color = "white") +
+  ggtitle("Speed CoV") +
+  theme(axis.title.x = element_blank(), axis.text.x = element_blank())
+
+p3 <- ggplot(meta_stats, aes(x = max_acc)) +
+  geom_histogram(fill = "lightpink", color = "white") +
+  ggtitle("Max Abs Acceleration") +
+  theme(axis.title.x = element_blank(), axis.text.x = element_blank())
+
+p4 <- ggplot(meta_stats, aes(x = trans_median_speed)) +
+  geom_histogram(fill = "skyblue", color = "white") +
+  ggtitle("Trans Median Speed") +
+  theme(axis.title.x = element_blank(), axis.text.x = element_blank())
+
+p5 <- ggplot(meta_stats, aes(x = trans_cv_speed)) +
+  geom_histogram(fill = "lightgreen", color = "white") +
+  ggtitle("Trans Speed CoV") +
+  theme(axis.title.x = element_blank(), axis.text.x = element_blank())
+
+p6 <- ggplot(meta_stats, aes(x = trans_max_acc)) +
+  geom_histogram(fill = "lightpink", color = "white") +
+  ggtitle("Trans Max Abs Acceleration") +
+  theme(axis.title.x = element_blank(), axis.text.x = element_blank())
+
+
+# Combine plots in 2 rows, 3 columns
+normhist_plot <- (p1 | p2 | p3) / (p4 | p5 | p6) + 
+  plot_annotation(
+    title = "Normalising the response variables through Box-Cox transformation"
+  )
+
+normhist_plot
+
+# Save the combined plot
+ggsave("Figures/Kinematics/NormalisingHists.svg", plot = normhist_plot, width = 10, height = 6)
+ggsave("Figures/Kinematics/NormalisingHists.png", plot = normhist_plot, width = 10, height = 6)
+```
+
+# II. Visualising Tracks
+
+4.  Plotting the tracks in space, subsetted by species-treatment combo
+    and coloured by median speed
+
+```{r, results = "hide"}
+
+# Function to convert group names to clean titles
+format_group_title <- function(group_string) {
+  parts <- unlist(strsplit(group_string, "-"))
+  species <- gsub("_", " ", parts[1])
+  treatment <- ifelse(parts[2] == "C", "Control", "Predator")
+  paste0(species, " - ", treatment)
+}
+
+# Create color palette for speed
+n_colors <- 100
+palette_fn <- colorRampPalette(viridis::viridis(n_colors))
+colors <- palette_fn(n_colors)
+
+# Get speed values and color assignments
+speed_vals <- meta_stats$trans_median_speed
+speed_range <- range(speed_vals, na.rm = TRUE)
+speed_indices <- as.integer(cut(speed_vals, breaks = n_colors, include.lowest = TRUE))
+speed_colors <- colors[speed_indices]
+
+# Define unique groups
+groups <- unique(meta_data$Group)
+
+# Axis limits for consistency
+all_x <- unlist(lapply(trjs, function(t) t$smooth$x))
+all_y <- unlist(lapply(trjs, function(t) t$smooth$y))
+xlim_all <- range(all_x)
+ylim_all <- range(all_y)
+
+# Plot function (used for both SVG and PNG)
+plot_trajectories <- function(filename, type = c("svg", "png")) {
+  if (type == "svg") {
+    svg(filename, width = 10, height = 6)
+  } else {
+    png(filename, width = 1000, height = 600, res = 150)
+  }
+
+  par(mfrow = c(2, 2), mar = c(4, 4, 3, 1))
+
+  for (grp in groups) {
+    idx <- which(meta_data$Group == grp)
+    title <- format_group_title(grp)
+
+    plot(NA, xlim = xlim_all, ylim = rev(ylim_all),
+         xlab = "x (m)", ylab = "y (m)", main = title)
+
+    for (i in idx) {
+      trj_smooth <- trjs[[i]]$smooth
+      lines(trj_smooth, col = speed_colors[i], lwd = 1.5)
+    }
+  }
+
+  # Add legend
+image.plot(legend.only = TRUE, zlim = speed_range, col = colors,
+           legend.args = list(text = "Median Speed (m/s)", side = 4, line = 2.5))
+
+
+  dev.off()
+}
+
+# Save both formats
+plot_trajectories("Figures/Kinematics/PlotTrajectories.svg", type = "svg")
+plot_trajectories("Figures/Kinematics/PlotTrajectories.png", type = "png")
+
+```
+
+This plots helps us visualise lots of things quickly. Firstly, we can see how the clips were distributed across the speceis and treatments and we see that Botia lohachata P is somewhat overrepresented. I am not too worries about the spread because the sample size is so large but if what I captured is truly a 'signalling' behaviour, then it would make sense for the frequency to be highest in the predator treatment and especially in the patterned fish species. Similarly, since the black dots mark origin points, the left to right split is fairly even. Secondly, we can judge by eye how median speed varies with species, treatment and distance to predator (predator model at top); a clear pattern doesn't emerge yet but these factors all captured later in our model.
+
+
+```{r, eval=FALSE}
+library(trajr)
+library(ggplot2)
+library(gridExtra)
+library(svglite)
+
+# Create output directory if needed
+out_dir <- "Figures/Kinematics/Trajectories"
+if (!dir.exists(out_dir)) dir.create(out_dir, recursive = TRUE)
+
+# Loop through each trajectory
+for (i in seq_along(smoothed_trjs)) {
+  trj <- smoothed_trjs[[i]]
+  trj_name <- names(smoothed_trjs)[i]
+
+  # Data frame with x, y, frame
+  df <- trj[, c("x", "y")]
+  df$frame <- 1:nrow(df)
+
+  # Calculate velocity and convert to speed (magnitude)
+  velocity <- TrajVelocity(trj)
+  df$speed <- Mod(velocity)  # make values positive
+
+
+  # Spatial plot
+  p1 <- ggplot(df, aes(x = x, y = y)) +
+  geom_path(linewidth = 1) +
+  coord_fixed(ratio = 1) +   # fixed 1:1 aspect ratio to keep x,y scales equal
+  theme_minimal() +
+  theme(
+    plot.margin = margin(5, 5, 5, 5),
+    panel.spacing = unit(0, "cm")
+  ) +
+  labs(title = paste("Trajectory:", trj_name),
+       x = "x (cm)", y = "y (cm)")
+
+p2 <- ggplot(df, aes(x = frame, y = speed)) +
+  geom_line(linewidth = 1, color = "darkblue") +
+  theme_minimal() +
+  theme(
+    plot.margin = margin(5, 5, 5, 5),
+    panel.spacing = unit(0, "cm"),
+    aspect.ratio = 1  # fix aspect ratio of speed plot to 1:1 too
+  ) +
+  labs(title = "Speed over time",
+       x = "Frame", y = "Speed (cm/s)")
+
+# Combine plots with equal height using patchwork
+combined_plot <- p1 | p2 + plot_layout(widths = c(1, 1), guides = "collect") & 
+  theme(plot.margin = margin(5, 5, 5, 5))
+
+
+# File names
+png_path <- file.path(out_dir, paste0(trj_name, ".png"))
+svg_path <- file.path(out_dir, paste0(trj_name, ".svg"))
+
+ggsave(png_path, plot = combined_plot, width = 10, height = 5, dpi = 300, bg = "white")
+ggsave(svg_path, plot = combined_plot, width = 10, height = 5, device = svglite::svglite)
+
+}
+```
+
+
+# III. Exploring Kinematic Metrics
+
+## Plotting distributions
+Figure of halfeye plots for all four response variables - distribution of
+    kinematic variables across species and treatments
+
+```{r, results = "hide"}
+# (a) Median Speed
+p1 <- ggplot(meta_stats, aes(y = Treatment, x = trans_median_speed)) +
+  stat_halfeye(
+    aes(fill = Species, fill_ramp = after_stat(level)),
+    .width = c(.66, .95, 1),
+    position = "dodgejust"
+  ) +
+  scale_fill_ramp_discrete(range = c(0.35, 1), na.translate = FALSE) +
+  scale_fill_manual(values = species_colours, labels=species_labels) +  # Custom color scale
+  labs(title = "Median Speed", 
+       y = "Treatment", 
+       x = "Normalised Median Speed", fill_ramp = "interval") +
+  theme_minimal() +
+  theme(legend.position="none",legend.text = element_text(face = "italic"))
+
+# (b) CoV Speed
+p2 <- ggplot(meta_stats, aes(y = Treatment, x = trans_cv_speed)) +
+  stat_halfeye(
+    aes(fill = Species, fill_ramp = after_stat(level)),
+    .width = c(.66, .95, 1),
+    position = "dodgejust"
+  ) +
+  scale_fill_ramp_discrete(range = c(0.35, 1), na.translate = FALSE) +
+  scale_fill_manual(values = species_colours, labels=species_labels) +  # Custom color scale
+  labs(title = "CoV Speed", 
+       y = "Treatment", 
+       x = "Normalised CoV Speed", fill_ramp = "interval") +
+  theme_minimal() +
+  theme(legend.position="none", legend.text = element_text(face = "italic"))
+
+# (c) Median Acceleration
+p3 <- ggplot(meta_stats, aes(y = Treatment, x = trans_max_acc)) +
+  stat_halfeye(
+    aes(fill = Species, fill_ramp = after_stat(level)),
+    .width = c(.66, .95, 1),
+    position = "dodgejust"
+  ) +
+  scale_fill_ramp_discrete(range = c(0.35, 1), na.translate = FALSE) +
+  scale_fill_manual(values = species_colours, labels=species_labels) +  # Custom color scale
+  labs(title = "Max Acceleration", 
+       xy = "Treatment", 
+       x = "Normalised Max Abs Acceleration", fill_ramp = "interval") +
+  theme_minimal() +
+  theme(legend.position="none", legend.text = element_text(face = "italic"))
+
+# Arrange the plots in a 2x2 grid with common legend
+final_plot <- ggarrange(p1, p2, p3, ncol = 3, nrow = 1, 
+                        common.legend = TRUE, legend = "bottom",
+                        heights = c(1,1), widths = c(1, 1))
+
+# Add a title to the whole figure
+halfeye_plot <- annotate_figure(final_plot,
+                                         top = text_grob("Distribution of Kinematic Metrics Across Species and Treatments", 
+                                                         face = "bold", size = 14))
+
+# Your plotting code
+halfeye_plot
+
+# To save to file:
+ggsave("Figures/Kinematics/Plots/HalfeyePlot.svg", plot = halfeye_plot, width = 10, height = 5)
+ggsave("Figures/Kinematics/Plots/HalfeyePlot.png", plot = halfeye_plot, width = 10, height = 5)
+
+```
+
+Between my four response variables, and is later clear with fitting models, I think my intuition that outright speed would be the key variable is correct. But overall, the central 66% of each distribution (coloured in darker here) does seem to mostly overlap across species and treatments. 
+
+
+# IV. Frequency of clips
+
+Chi squared goodness-of-fit test to see how my clips are distributed between Species-Treatment Groups. 
+
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(gt)
+
+# Step 1: Create observed table
+observed <- table(meta_stats$Group)
+
+# Step 2: Equal expectations
+expected_even <- rep(sum(observed) / length(observed), length(observed))
+chisq_test_equal <- chisq.test(observed, p = rep(1/length(observed), length(observed)))
+residuals_even <- chisq_test_equal$stdres
+
+chi_table_even <- data.frame(
+  Group = names(observed),
+  Observed = as.vector(observed),
+  Expected = as.vector(expected_even),
+  Residuals = round(as.numeric(residuals_even), 2),
+  Test = "Equal Proportions"
+)
+
+# Step 3: Weighted expectations
+group_counts <- meta_stats %>%
+  dplyr::select(Group, TrialID) %>%
+  dplyr::distinct() %>%
+  dplyr::count(Group, name = "UniqueTrialCount") %>%
+  dplyr::filter(Group %in% names(observed)) %>%
+  dplyr::arrange(factor(Group, levels = names(observed)))
+
+expected_prop <- group_counts$UniqueTrialCount / sum(group_counts$UniqueTrialCount)
+expected_weighted <- expected_prop * sum(observed)
+
+chisq_test_weighted <- chisq.test(observed, p = expected_prop)
+residuals_weighted <- chisq_test_weighted$stdres
+
+chi_table_weighted <- data.frame(
+  Group = names(observed),
+  Observed = as.vector(observed),
+  Expected = round(expected_weighted, 2),
+  Residuals = round(as.numeric(residuals_weighted), 2),
+  Test = "Weighted by TrialID"
+)
+
+# Step 4: Combine both chi tables
+chi_full <- bind_rows(chi_table_even, chi_table_weighted)
+
+# Step 5: Add test-level summary (ChiSq, df, p-value)
+summary_long <- data.frame(
+  Group = NA,
+  Observed = NA,
+  Expected = NA,
+  Residuals = NA,
+  Test = c("Equal Proportions", "Weighted by TrialID"),
+  ChiSq = c(as.numeric(chisq_test_equal$statistic), as.numeric(chisq_test_weighted$statistic)),
+  df = c(chisq_test_equal$parameter, chisq_test_weighted$parameter),
+  p_value = c(chisq_test_equal$p.value, chisq_test_weighted$p.value)
+)
+summary_reduced <- summary_long %>%
+  select(Test, ChiSq, df, p_value)
+
+# Step 6: Join summary back to main table
+final_table <- chi_full %>%
+  left_join(summary_reduced, by = "Test") %>%
+  select(Test, Group, Observed, Expected, Residuals, ChiSq, df, p_value)
+
+
+# Step 7: Clean and prepare the final table for gt
+final_table_cleaned <- final_table %>%
+  arrange(Test, Group) %>%
+  group_by(Test) %>%
+  mutate(
+    # Round ChiSq and p_value to 2 decimals before converting to character
+    ChiSq = round(ChiSq, 2),
+    p_value = round(p_value, 2),
+    Test_display = ifelse(row_number() == 1, Test, ""),           # Empty string merges visually
+    ChiSq = ifelse(row_number() == 1, as.character(ChiSq), " "),  # Space instead of NA
+    df = ifelse(row_number() == 1, as.character(df), " "),
+    p_value = ifelse(row_number() == 1, as.character(p_value), " ")
+  ) %>%
+  ungroup() %>%
+  select(-Test) %>%                # Remove original Test column
+  rename(Test = Test_display) %>% # Rename Test_display to Test
+  select(Test, ChiSq, df, p_value, everything()) # Reorder columns with Test first
+
+# Create and display the gt table
+gt_table_comb <- final_table_cleaned %>%
+  gt() %>%
+  tab_header(title = "Chi-squared Test Results by Group") %>%
+  fmt_number(columns = c(Observed, Expected, Residuals), decimals = 3) %>%
+  cols_label(
+    Test = "Test",
+    ChiSq = "Chi-sq",
+    df = "df",
+    p_value = "p"
+  ) %>%
+  cols_move_to_start(columns = Test)
+
+# Create separate gt table for Equal Proportions
+gt_table_even <- chi_table_even %>%
+  gt() %>%
+  tab_header(title = "Chi-squared: Equal Proportions") %>%
+  fmt_number(columns = c(Observed, Expected, Residuals), decimals = 3) %>%
+  cols_label(
+    Group = "Group",
+    Observed = "Observed",
+    Expected = "Expected",
+    Residuals = "Std Residual"
+  )
+
+# Create separate gt table for Weighted Expectations
+gt_table_weighted <- chi_table_weighted %>%
+  gt() %>%
+  tab_header(title = "Chi-squared: Weighted by TrialID") %>%
+  fmt_number(columns = c(Observed, Expected, Residuals), decimals = 3) %>%
+  cols_label(
+    Group = "Group",
+    Observed = "Observed",
+    Expected = "Expected",
+    Residuals = "Std Residual"
+  )
+
+# Save as PNG
+gtsave(gt_table_weighted, "Figures/Kinematics/ Models/Frequency/chi_table_weighted.png")
+gtsave(gt_table_even, "Figures/Kinematics/ Models/Frequency/chi_table_even.png")
+gtsave(gt_table_comb, "Figures/Kinematics/ Models/Frequency/chi_table_comb.png")
+
+# Display the table object
+gt_table_comb
+
+```
+
+
+
+# V. Modelling: Characteristics of clips
+
+## Establishing models and Saving Outputs
+
+```{r}
+source("Functions/modelling.r")
+mod1.3 <- glmmTMB(trans_median_speed ~ Species + Treatment + scale(mean_dist2pred) + (1|TrialID), data = meta_stats)
+
+mod2.3 <- glmmTMB(trans_cv_speed ~ Species + Treatment + scale(mean_dist2pred) + (1|TrialID), data = meta_stats)
+
+mod3.3 <- glmmTMB(trans_max_acc ~ Species + Treatment + scale(mean_dist2pred) + (1|TrialID), data = meta_stats)
+
+models <- list(
+  "Median Speed" = mod1.3,
+  "Speed CoV" = mod2.3,
+  "Maximum Absolute Acceleration" = mod3.3
+)
+
+# making and saving tidy table outputs of anova summary
+imap(models, ~ {
+  tbl <- glmmTMB_to_gt(.x, .y)
+  out_path <- file.path("Figures","Kinematics", "Models", paste0(.y, "_summary.png"))
+  # ensure the directory exists
+  dir.create(dirname(out_path), recursive = TRUE, showWarnings = FALSE)
+  gtsave(tbl, filename = out_path)
+})
+
+# making and saving tidy table outputs of drop1()
+iwalk(models, ~ drop1_to_gt(.x, model_name = .y,
+                            out_dir = "Figures/Kinematics/Models",
+                            file_name = paste0(.y, "_drop1.png")))
+
+
+# combined summary and drop1 table
+iwalk(models, ~ combined_model_summary_gt(
+  model      = .x,
+  model_name = .y,
+  out_dir    = "Figures/Kinematics/Models",
+  file_name  = paste0(.y, "_summary_combined.png")
+))
+
+# making and saving contvar plots
+ContVar_plots <- imap(models, ~ make_contvar_plot(
+  model          = .x,
+  model_name     = .y,
+  data           = meta_stats,
+  out_dir        = "Figures/Kinematics/Plots",
+  n_points       = 200
+))
+
+
+# making and saving interaction plots
+inter_plots <- imap(models, ~ make_inter_plot(
+  model          = .x,
+  model_name     = .y,
+  data           = meta_stats,
+  out_dir        = "Figures/Kinematics/Plots",
+  width          = 5,
+  height         = 5
+))
+
+# check model assumptions
+iwalk(models, ~ save_model_diagnostics(
+  model = .x,
+  model_name = .y,
+  out_dir = "Figures/Kinematics/Models/Diagnostics"
+))
+```
+
+
+
+##  (a) Median Speed
+
+Patterned B.lohachata is faster than Plain Y. modesta in both treatments - this could be to do with anything about the species (habitat, specific body shape, ecologies etc). Judging from the significant distribution overlap, there doesn't seem to be an effect of treatment.
+
+6a. Applying and simplifying models
+
+1.1 Full model with all two and three way interaction terms
+```{r mod1.1, include=FALSE}
+mod1.1 <- glmmTMB(trans_median_speed ~ (Species + Treatment + scale(mean_dist2pred))^3 + (1|TrialID), data=meta_stats)
+summary(mod1.1)
+drop1(mod1.1, test="Chi")
+```
+The only significant term seems to be Species.
+
+1.2. Model with 3-way interaction removed.
+```{r mod1.2, include=FALSE}
+mod1.2 <- glmmTMB(trans_median_speed ~ (Species + Treatment + scale(mean_dist2pred))^2 + (1|TrialID), data=meta_stats)
+summary(mod1.2)
+drop1(mod1.2, test="Chi")
+```
+
+Again, Species is the only significant term and none of the interaction terms are significant so, I will remove them.
+
+1.3 All interactions removed
+```{r mod1.3, echo=FALSE}
+mod1.3 <- glmmTMB(trans_median_speed ~ Species + Treatment + scale(mean_dist2pred) + (1|TrialID), data = meta_stats)
+summary(mod1.3)
+drop1(mod1.3)
+```
+Species and distance to predator are the significant terms. I will do no further model simplification. Drop1 test confirms that species and distance to predator are significant terms but not treatment. 
+
+6b. Plots
+
+```{r mod1.1: ContPlot, echo=FALSE}
+nseq <- function(x, len=length(x)) seq(min(x, na.rm=TRUE), max(x, na.rm=TRUE), length=len)
+
+
+pred_data<-data.frame(mean_dist2pred=nseq(meta_stats$mean_dist2pred, nrow(meta_stats)), 
+                      Treatment="C", 
+                      Species="Botia_lohachata",
+                      TrialID=NA)
+
+pred_data_2<-pred_data
+pred_data_2$Species="Yasuhikotakia_modesta"
+
+pred_data<-rbind(pred_data, pred_data_2)
+
+new_data<-predict(mod1.3, pred_data, se.fit=TRUE, type="response")
+new_data<-data.frame(new_data)
+pred_data<-cbind(pred_data, new_data)
+colnames(pred_data)<-c("mean_dist2pred", "Treatment", "Species", "TrialID", "trans_median_speed", "s.e.")
+pred_data$Upper<-pred_data$trans_median_speed+1.96*pred_data$s.e.
+pred_data$Lower<-pred_data$trans_median_speed-1.96*pred_data$s.e.
+
+mod1.3_contvar_plot <- ggplot(data=meta_stats, aes(x=mean_dist2pred, y=trans_median_speed, col=Species)) +
+  geom_point() +
+  geom_ribbon(data=pred_data, aes(ymin=Lower, ymax=Upper, col=Species, fill=Species), alpha=0.2) +
+  geom_line(data=pred_data, aes(x=mean_dist2pred, y=trans_median_speed, col=Species)) +
+  scale_fill_manual(values = species_colours) +
+  scale_color_manual(values = species_colours) +
+  theme_minimal() +
+  theme(
+    legend.position = c(0.95, 0.95),       # x and y positions: top-right inside plot
+    legend.justification = c("right", "top"),  # Anchor legend by its top-right corner
+    legend.background = element_rect(fill = alpha("white", 0.7), color = NA),  # Semi-transparent bg
+    legend.key = element_rect(fill = "transparent", color = NA)
+  )
+
+mod1.3_contvar_plot
+ggsave("Figures/Plots/Kinematics/Mod1.3_ContVar_plot.svg", plot = mod1.3_contvar_plot, width = 5, height = 5)
+
+```
+
+The significant term in the model is the Species. Botia lohachata is faster than Yasuhikotakia modesta.
+
+7b. Plotting model results with interactions
+
+```{r mod1.3 InterPlot, echo=FALSE, warning=FALSE, message=FALSE}
+# Run ANOVA
+
+mod1.3_inter_plot <- ggline(meta_stats, x = "Treatment", y = "trans_median_speed", color = "Species",
+       add = c("mean_se", "dotplot"),
+       palette = species_colours)
+
+mod1.3_inter_plot
+ggsave("Figures/Kinematics/Plots/Mod1.3_Inter_plot.svg", plot = mod1.3_inter_plot, width = 5, height = 5)
+
+```
+
+These interaction plots tell the same story as the box and whisker and halfeye plots from earlier. Botia lohachata is faster overall and slows down notably when in the predator treatment whereas Yasuhikotakia modesta is slower overall and barely changes speed between treatments
+
+
+
+
+--------------------------------------------------------------------------------
+##  (b) CoV speed
+
+2.1. Full model with all two and three way interaction terms
+```{r mod2.1, include=FALSE}
+mod2.1 <- glmmTMB(trans_cv_speed ~ (Species + Treatment + scale(mean_dist2pred))^3 + (1|TrialID), data=meta_stats)
+summary(mod2.1)
+drop1(mod2.1, test="Chi")
+```
+
+No significant terms. Removing 3-way interaction
+
+2.2. Near Full model with all two way interaction terms
+```{r mod2.2, include=FALSE}
+mod2.2 <- glmmTMB(trans_cv_speed ~ (Species + Treatment + scale(mean_dist2pred))^2 + (1|TrialID), data=meta_stats)
+summary(mod2.2)
+drop1(mod2.2, test="Chi")
+```
+
+No significant terms. Removing 2-way interactions
+
+2.3. Simplified model with all no interaction terms
+```{r mod2.3, echo=FALSE}
+mod2.3 <- glmmTMB(trans_cv_speed ~ Species + Treatment + scale(mean_dist2pred) + (1|TrialID), data=meta_stats)
+summary(mod2.3)
+drop1(mod2.3, test="Chi")
+```
+
+Now, Treatment and distance to predator are significant terms. Species almost but not quite. 
+
+
+
+```{r mod2.3 ContPlot, echo=FALSE}
+nseq <- function(x, len=length(x)) seq(min(x, na.rm=TRUE), max(x, na.rm=TRUE), length=len)
+
+
+pred_data<-data.frame(mean_dist2pred=nseq(meta_stats$mean_dist2pred, nrow(meta_stats)), 
+                      Treatment="C", 
+                      Species="Botia_lohachata",
+                      TrialID=NA)
+
+pred_data_2<-pred_data
+pred_data_2$Species="Yasuhikotakia_modesta"
+
+pred_data<-rbind(pred_data, pred_data_2)
+
+new_data<-predict(mod2.3, pred_data, se.fit=TRUE, type="response")
+new_data<-data.frame(new_data)
+pred_data<-cbind(pred_data, new_data)
+colnames(pred_data)<-c("mean_dist2pred", "Treatment", "Species", "TrialID", "trans_cv_speed", "s.e.")
+pred_data$Upper<-pred_data$trans_cv_speed+1.96*pred_data$s.e.
+pred_data$Lower<-pred_data$trans_cv_speed-1.96*pred_data$s.e.
+
+mod2.3_contvar_plot <- ggplot(data = meta_stats, aes(x = mean_dist2pred, y = trans_cv_speed, col = Species)) +
+  geom_point() +
+  geom_ribbon(data = pred_data, aes(x = mean_dist2pred, ymin = Lower, ymax = Upper, fill = Species), alpha = 0.2, color = NA) +  # no color for ribbon edges
+  geom_line(data = pred_data, aes(x = mean_dist2pred, y = trans_cv_speed, col = Species)) +
+  scale_fill_manual(values = species_colours) +
+  scale_color_manual(values = species_colours) +
+  theme_minimal() +
+  theme(
+    legend.position = c(0.95, 0.95),       # inside top-right
+    legend.justification = c("right", "top"),
+    legend.background = element_rect(fill = alpha("white", 0.7), color = NA),
+    legend.key = element_rect(fill = "transparent", color = NA)
+  )
+
+mod2.3_contvar_plot
+ggsave("Figures/Kinematics/Plots/Mod2.3_ContVar_plot.svg", plot = mod2.3_contvar_plot, width = 5, height = 5)
+
+```
+
+```{r mod2.3 InterPlot, echo=FALSE, message=FALSE, warning=FALSE}
+mod2.3_inter_plot <- ggline(meta_stats, x = "Treatment", y = "trans_cv_speed", color = "Species",
+       add = c("mean_se", "dotplot"),
+       palette = species_colours)
+
+mod2.3_inter_plot
+ggsave("Figures/Kinematics/Plots/Mod2.3_Inter_plot.svg", plot = mod2.3_inter_plot, width = 5, height = 5)
+```
+
+--------------------------------------------------------------------------------
+## (c) Max absolute acceleration
+
+3.1. Full model with all two and three way interaction terms
+```{r mod3.1, include=FALSE}
+mod3.1 <- glmmTMB(trans_max_acc ~ (Species + Treatment + scale(mean_dist2pred))^3 + (1|TrialID), data=meta_stats)
+summary(mod3.1)
+drop1(mod3.1, test="Chi")
+```
+
+No significant terms. Removing 3-way interaction
+
+3.2. Near Full model with all two way interaction terms
+```{r mod3.2, include=FALSE}
+mod3.2 <- glmmTMB(trans_max_acc ~ (Species + Treatment + scale(mean_dist2pred))^2 + (1|TrialID), data=meta_stats)
+summary(mod3.2)
+drop1(mod3.2, test="Chi")
+```
+
+Minimum distance to predator is significant. No significant interaction terms. Removing 2-way interactions
+
+3.3. Simplified model with all no interaction terms
+```{r mod3.3, echo=FALSE}
+mod3.3 <- glmmTMB(trans_max_acc ~ Species + Treatment + scale(mean_dist2pred) + (1|TrialID), data=meta_stats)
+summary(mod3.3)
+drop1(mod3.3, test="Chi")
+```
+
+Distance to predator is the only significant term. 
+
+6c. Plotting mean speed against distance to predator
+
+```{r mod3.3 ContPlot, echo=FALSE}
+nseq <- function(x, len=length(x)) seq(min(x, na.rm=TRUE), max(x, na.rm=TRUE), length=len)
+
+
+pred_data<-data.frame(mean_dist2pred=nseq(meta_stats$mean_dist2pred, nrow(meta_stats)), 
+                      Treatment="C", 
+                      Species="Botia_lohachata",
+                      TrialID=NA)
+
+pred_data_2<-pred_data
+pred_data_2$Species="Yasuhikotakia_modesta"
+
+pred_data<-rbind(pred_data, pred_data_2)
+
+new_data<-predict(mod3.3, pred_data, se.fit=TRUE, type="response")
+new_data<-data.frame(new_data)
+pred_data<-cbind(pred_data, new_data)
+colnames(pred_data)<-c("mean_dist2pred", "Treatment", "Species", "TrialID", "trans_max_acc", "s.e.")
+pred_data$Upper<-pred_data$trans_max_acc+1.96*pred_data$s.e.
+pred_data$Lower<-pred_data$trans_max_acc-1.96*pred_data$s.e.
+
+mod3.3_contvar_plot <- ggplot(data = meta_stats, aes(x = mean_dist2pred, y = trans_max_acc, col = Species)) +
+  geom_point() +
+  geom_ribbon(
+    data = pred_data,
+    aes(x = mean_dist2pred, ymin = Lower, ymax = Upper, fill = Species),
+    alpha = 0.2,
+    color = NA  # removes ribbon borders
+  ) +
+  geom_line(
+    data = pred_data,
+    aes(x = mean_dist2pred, y = trans_max_acc, col = Species)
+  ) +
+  scale_fill_manual(values = species_colours) +
+  scale_color_manual(values = species_colours) +
+  theme_minimal() +
+  theme(
+    legend.position = c(0.95, 0.95),  # top-right inside plot
+    legend.justification = c("right", "top"),
+    legend.background = element_rect(fill = alpha("white", 0.7), color = NA),
+    legend.key = element_rect(fill = "transparent", color = NA)
+  )
+
+mod3.3_contvar_plot
+ggsave("Figures/Kinematics/Plots/Mod3.3_ContVar_plot.svg", plot = mod3.3_contvar_plot, width = 5, height = 5)
+
+```
+
+```{r mod3.3 Interplot, echo=FALSe, message=FALSe, warning=FALSE}
+mod3.3_inter_plot <- ggline(meta_stats, x = "Treatment", y = "trans_max_acc", color = "Species",
+       add = c("mean_se", "dotplot"),
+       palette = c("#E69F00", "#0072B2"))
+
+mod3.3_inter_plot
+ggsave("Figures/Kinematics/Plots/Mod3.3_Inter_plot.svg", plot = mod3.3_inter_plot, width = 5, height = 5)
+
+```
+
+
+-------------------------------------------------------------------------------
+
+## Things to fix
+I want to save smoothed_trjs
+```{r}
+# library(trajr)
+# write.trajr(smoothed_trjs, file = "smoothed_trjs.csv")
+```
+
+I also want to print out the model summary results neatly. 
+```{r eval=FALSE}
+library(glmmTMB)
+library(broom.mixed)  # for tidy.glmmTMB
+library(dplyr)
+library(pander)
+library(grid)
+
+
+# Tidy model coefficients (fixed effects)
+tidy_mod <- tidy(mod1.3, effects = "fixed")
+
+# drop1 results as data.frame
+drop1_df <- as.data.frame(drop1(mod1.3, test = "Chi"))
+drop1_df$term <- rownames(drop1_df)
+rownames(drop1_df) <- NULL
+tidy_mod$term <- c("Intercept", "Species", "Treatment", "scale(mean_dist2pred)")
+
+# Merge the two tables by term
+merged_df <- tidy_mod %>%
+  full_join(drop1_df, by = "term") %>%
+  filter(term != "<none>") %>%  # ← Remove the intercept row
+  select(term, estimate, std.error, statistic, p.value, `Pr(>Chi)`)
+
+pander(merged_df, caption = "Model 1.3: Coefficients and drop1 Results")
+
+# Round numeric values for display
+merged_print <- merged_df %>%
+  mutate(across(where(is.numeric), ~ round(., 3)))
+
+# Convert to table grob
+table_grob <- tableGrob(merged_print)
+
+# Save as SVG
+svg("Figures/Kinematics/Models/model1.3_results.svg", width = 8, height = 5)
+grid.draw(table_grob)
+dev.off()
+```
+
+
+# T-test of fish height
+```{r}
+heightdata <- read_csv("RawData/FishHeight.csv")
+head(heightdata)
+
+t_result <- t.test(Height ~ Species, data = heightdata)
+print(t_result)
+```
+

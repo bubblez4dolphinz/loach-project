@@ -1,0 +1,1 @@
+"0","res.pca <- prcomp(normalised_data, scale = FALSE)"

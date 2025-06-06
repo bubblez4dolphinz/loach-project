@@ -1,0 +1,54 @@
+
+== Rayleigh Test: Signed Difference Bias (left (270°)) ==
+
+       Rayleigh Test of Uniformity 
+       General Unimodal Alternative 
+
+Test Statistic:  0.931 
+P-value:  0 
+
+
+== Rayleigh Test: Signed Difference Bias (right (90°)) ==
+
+       Rayleigh Test of Uniformity 
+       General Unimodal Alternative 
+
+Test Statistic:  0.9332 
+P-value:  0 
+
+
+== Watson-Williams Test: Left (270°) Clips ==
+
+	Watson-Williams test for homogeneity of means
+
+data:  ww_df$signed_diff_circ by factor(ww_df$treatment)
+F = 14.492, df1 = 1, df2 = 196, p-value = 0.0001881
+sample estimates:
+Circular Data: 
+Type = angles 
+Units = degrees 
+Template = none 
+Modulo = asis 
+Zero = 0 
+Rotation = counter 
+  mean of bg mean of both 
+    24.29196     12.99353 
+
+
+== Watson-Williams Test: Right (90°) Clips ==
+
+	Watson-Williams test for homogeneity of means
+
+data:  ww_df$signed_diff_circ by factor(ww_df$treatment)
+F = 9.8436, df1 = 1, df2 = 174, p-value = 0.002002
+sample estimates:
+Circular Data: 
+Type = angles 
+Units = degrees 
+Template = none 
+Modulo = asis 
+Zero = 0 
+Rotation = counter 
+  mean of bg mean of both 
+   -19.81281    -10.01483 
+

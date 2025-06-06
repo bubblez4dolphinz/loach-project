@@ -1,0 +1,6 @@
+"0","# Define a wrapper to convert base plot to grob"
+"0","capture_plot <- function(expr) {"
+"0","  grid.newpage()"
+"0","  grid.echo(expr)"
+"0","  grid.grab()"
+"0","}"

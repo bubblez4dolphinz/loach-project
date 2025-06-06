@@ -1,0 +1,2 @@
+"0","packages <- c(""tidyverse"", ""bestNormalize"", ""performance"", ""DHARMa"", ""glmmTMB"", ""ggeffects"", ""ggplot2"", ""dplyr"")"
+"0","check_and_load_packages(packages)"

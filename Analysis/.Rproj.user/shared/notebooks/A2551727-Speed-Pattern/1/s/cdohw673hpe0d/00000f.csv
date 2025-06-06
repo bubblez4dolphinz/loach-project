@@ -1,0 +1,155 @@
+"0","# renv::init() #initialise renv"
+"0","renv::snapshot() #update renv"
+"1","A large number of files (1469 in total) have been discovered.
+"
+"1","It may take renv a long time to crawl these files for dependencies.
+"
+"1","Consider using .renvignore to ignore irrelevant files.
+"
+"1","See `?renv::dependencies` for more information.
+"
+"1","Set `options(renv.config.dependencies.limit = Inf)` to disable this warning.
+"
+"1","
+"
+"1","The following package(s) have unsatisfied dependencies:
+- MatrixModels requires Matrix (>= 1.6-0), but version 1.5-1 is installed
+Consider updating the required dependencies as appropriate.
+
+"
+"0","y"
+"1","
+"
+"1","The following package(s) will be updated in the lockfile:
+"
+"1","
+"
+"1","# CRAN -----------------------------------------------------------------------
+"
+"1","- codetools       [0.2-18 -> *]
+"
+"1","- cluster         [* -> 2.1.4]
+"
+"1","- permute         [* -> 0.9-7]
+"
+"1","- vegan           [* -> 2.6-10]
+"
+"1","
+"
+"1","# RSPM -----------------------------------------------------------------------
+"
+"1","- ape             [5.8-1 -> *]
+"
+"1","- crosstalk       [1.2.1 -> *]
+"
+"1","- DHARMa          [0.4.7 -> *]
+"
+"1","- doParallel      [1.0.17 -> *]
+"
+"1","- ellipsis        [0.3.2 -> *]
+"
+"1","- foreach         [1.5.2 -> *]
+"
+"1","- gap             [1.6 -> *]
+"
+"1","- gap.datasets    [0.0.6 -> *]
+"
+"1","- httpuv          [1.6.12 -> *]
+"
+"1","- iterators       [1.0.14 -> *]
+"
+"1","- later           [1.3.1 -> *]
+"
+"1","- lazyeval        [0.2.2 -> *]
+"
+"1","- lmtest          [0.9-40 -> *]
+"
+"1","- plotly          [4.10.4 -> *]
+"
+"1","- plyr            [1.8.9 -> *]
+"
+"1","- promises        [1.2.1 -> *]
+"
+"1","- qgam            [2.0.0 -> *]
+"
+"1","- shiny           [1.8.0 -> *]
+"
+"1","- sourcetools     [0.1.7-1 -> *]
+"
+"1","- xtable          [1.8-4 -> *]
+"
+"1","- zoo             [1.8-14 -> *]
+"
+"1","- blob            [* -> 1.2.4]
+"
+"1","- callr           [* -> 3.7.6]
+"
+"1","- cellranger      [* -> 1.1.0]
+"
+"1","- conflicted      [* -> 1.2.0]
+"
+"1","- DBI             [* -> 1.2.3]
+"
+"1","- dbplyr          [* -> 2.5.0]
+"
+"1","- dtplyr          [* -> 1.3.1]
+"
+"1","- entropy         [* -> 1.3.2]
+"
+"1","- forcats         [* -> 1.0.0]
+"
+"1","- gargle          [* -> 1.5.2]
+"
+"1","- googledrive     [* -> 2.1.1]
+"
+"1","- googlesheets4   [* -> 1.1.1]
+"
+"1","- gtExtras        [* -> 0.6.0]
+"
+"1","- haven           [* -> 2.5.4]
+"
+"1","- ids             [* -> 1.0.1]
+"
+"1","- lubridate       [* -> 1.9.4]
+"
+"1","- paletteer       [* -> 1.6.0]
+"
+"1","- prismatic       [* -> 1.1.2]
+"
+"1","- processx        [* -> 3.8.6]
+"
+"1","- ps              [* -> 1.9.1]
+"
+"1","- ragg            [* -> 1.4.0]
+"
+"1","- readxl          [* -> 1.4.5]
+"
+"1","- rematch         [* -> 2.0.0]
+"
+"1","- rematch2        [* -> 2.1.2]
+"
+"1","- reprex          [* -> 2.1.1]
+"
+"1","- rstudioapi      [* -> 0.17.1]
+"
+"1","- rvest           [* -> 1.0.4]
+"
+"1","- selectr         [* -> 0.4-2]
+"
+"1","- systemfonts     [* -> 1.2.3]
+"
+"1","- textshaping     [* -> 1.0.1]
+"
+"1","- tidyverse       [* -> 2.0.0]
+"
+"1","- timechange      [* -> 0.3.0]
+"
+"1","- uuid            [* -> 1.2-1]
+"
+"1","
+"
+"0","y"
+"1","
+"
+"1","- Lockfile written to ""C:/Users/flora/Desktop/Oxford/Year 4/Analysis/renv.lock"".
+"

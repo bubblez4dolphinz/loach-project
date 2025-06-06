@@ -1,0 +1,8 @@
+"0","packages <- c(""ggplot2"", ""circular"", ""purrr"", ""magick"", ""CircStats"", ""conflicted"", ""readr"", ""tidyr"", ""stringr"", ""gt"", ""broom"", ""webshot2"", ""forcats"", ""dplyr"")"
+"0","check_and_load_packages(packages)"
+"0",""
+"0","conflict_prefer(""select"", ""dplyr"")"
+"0","conflict_prefer(""filter"", ""dplyr"")"
+"0","conflict_prefer(""mutate"", ""dplyr"")"
+"0","conflict_prefer(""drop_na"", ""tidyr"")"
+"0","conflict_prefer(""pivot_wider"", ""tidyr"")"
